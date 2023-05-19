@@ -8,7 +8,6 @@ import os
 import multiprocessing as mp
 
 
-print("slm")
 ### Configs
 # 8 cores are used for multi-thread processing
 NUM_JOBS = 2
