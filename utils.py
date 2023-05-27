@@ -93,5 +93,5 @@ def trim_state_dict_name(state_dict):
 
 def inf_train_gen(data_loader):
     while True:
-        for _,batch in enumerate(data_loader):
+        for _, batch in enumerate(data_loader):
             yield batch

@@ -6,6 +6,8 @@ from torch import optim
 from torch.nn import functional as F
 from models.layers import SNConv3d, SNLinear
 
+'''
+No usage where found
 class Code_Discriminator(nn.Module):
     def __init__(self, code_size, num_units=256):
         super(Code_Discriminator, self).__init__()
@@ -22,7 +24,11 @@ class Code_Discriminator(nn.Module):
         x = self.l3(x)
 
         return x
+'''
 
+
+'''
+This is E_G
 class Sub_Encoder(nn.Module):
     def __init__(self, channel=256, latent_dim=1024):
         super(Sub_Encoder, self).__init__()
@@ -45,6 +51,8 @@ class Sub_Encoder(nn.Module):
         h = self.relu(self.bn4(h))
         h = self.conv5(h).squeeze()
         return h
+'''
+
 
 class Encoder(nn.Module):
     def __init__(self, channel=64):
@@ -69,6 +77,9 @@ class Encoder(nn.Module):
         h = self.relu(self.bn3(h))
         return h
 
+
+'''
+This is D_L
 class Sub_Discriminator(nn.Module):
     def __init__(self, num_class=0, channel=256):
         super(Sub_Discriminator, self).__init__()
@@ -90,6 +101,8 @@ class Sub_Discriminator(nn.Module):
         else:
             h = self.conv5(h).view((-1,1+self.num_class))
             return h[:,:1], h[:,1:]
+'''
+
 
 class Discriminator(nn.Module):
     def __init__(self, num_class=0, channel=512):
@@ -98,10 +111,10 @@ class Discriminator(nn.Module):
         self.num_class = num_class
         
         # D^H
-        self.conv2 = SNConv3d(1, channel//16, kernel_size=4, stride=2, padding=1) # out:[8,64,64,64]
-        self.conv3 = SNConv3d(channel//16, channel//8, kernel_size=4, stride=2, padding=1) # out:[4,32,32,32]
-        self.conv4 = SNConv3d(channel//8, channel//4, kernel_size=(2,4,4), stride=(2,2,2), padding=(0,1,1)) # out:[2,16,16,16]
-        self.conv5 = SNConv3d(channel//4, channel//2, kernel_size=(2,4,4), stride=(2,2,2), padding=(0,1,1)) # out:[1,8,8,8]
+        self.conv2 = SNConv3d(1, channel//16, kernel_size=4, stride=2, padding=1)  # out:[8,64,64,64]
+        self.conv3 = SNConv3d(channel//16, channel//8, kernel_size=4, stride=2, padding=1)  # out:[4,32,32,32]
+        self.conv4 = SNConv3d(channel//8, channel//4, kernel_size=(2, 4, 4), stride=(2, 2, 2), padding=(0, 1, 1))  # out:[2,16,16,16]
+        self.conv5 = SNConv3d(channel//4, channel//2, kernel_size=(2,4,4), stride=(2,2,2), padding=(0,1,1))  # out:[1,8,8,8]
         self.conv6 = SNConv3d(channel//2, channel, kernel_size=(1,4,4), stride=(1,2,2), padding=(0,1,1)) # out:[1,4,4,4]
         self.conv7 = SNConv3d(channel, channel//4, kernel_size=(1,4,4), stride=1, padding=0) # out:[1,1,1,1]
         self.fc1 = SNLinear(channel//4+1, channel//8)
@@ -110,9 +123,10 @@ class Discriminator(nn.Module):
             self.fc2_class = SNLinear(channel//8, num_class)
 
         # D^L
-        self.sub_D = Sub_Discriminator(num_class)
+    #    self.sub_D = Sub_Discriminator(num_class)
 
-    def forward(self, h, h_small, crop_idx):
+    # def forward(self, h, h_small, crop_idx):
+    def forward(self, h, crop_idx):
         h = F.leaky_relu(self.conv2(h), negative_slope=0.2)
         h = F.leaky_relu(self.conv3(h), negative_slope=0.2)
         h = F.leaky_relu(self.conv4(h), negative_slope=0.2)
@@ -125,13 +139,17 @@ class Discriminator(nn.Module):
         if self.num_class>0:
             h_class_logit = self.fc2_class(h)
 
-            h_small_logit, h_small_class_logit = self.sub_D(h_small)
-            return (h_logit+ h_small_logit)/2., (h_class_logit+ h_small_class_logit)/2.
+            #h_small_logit, h_small_class_logit = self.sub_D(h_small)
+            #return (h_logit+ h_small_logit)/2., (h_class_logit+ h_small_class_logit)/2.
+            return h_logit , h_class_logit
         else:
-            h_small_logit = self.sub_D(h_small)
-            return (h_logit+ h_small_logit)/2.
+            #h_small_logit = self.sub_D(h_small)
+            #return (h_logit+ h_small_logit)/2.
+            return h_logit
 
 
+'''
+This is G_L
 class Sub_Generator(nn.Module):
     def __init__(self, channel:int=16):
         super(Sub_Generator, self).__init__()
@@ -157,6 +175,8 @@ class Sub_Generator(nn.Module):
         h = self.tp_conv3(h)
         h = torch.tanh(h)
         return h
+'''
+
 
 class Generator(nn.Module):
     def __init__(self, mode="train", latent_dim=1024, channel=32, num_class=0):
@@ -191,7 +211,7 @@ class Generator(nn.Module):
         self.tp_conv7 = nn.Conv3d(_c, 1, kernel_size=3, stride=1, padding=1, bias=True)
 
         # G^L
-        self.sub_G = Sub_Generator(channel=_c//2)
+        #self.sub_G = Sub_Generator(channel=_c//2)
  
     def forward(self, h, crop_idx=None, class_label=None):
 
@@ -222,7 +242,7 @@ class Generator(nn.Module):
             h_latent = self.relu(self.bn5(h)) # (32, 32, 32), channel:128
 
             if self.mode == "train":
-                h_small = self.sub_G(h_latent)
+                #h_small = self.sub_G(h_latent)
                 h = h_latent[:,:,crop_idx//4:crop_idx//4+4,:,:] # Crop sub-volume, out: (4, 32, 32)
             else:
                 h = h_latent
@@ -237,6 +257,7 @@ class Generator(nn.Module):
 
         h = torch.tanh(h) # (128, 128, 128)
 
-        if crop_idx != None and self.mode == "train":
-            return h, h_small
+        #if crop_idx != None and self.mode == "train":
+            #return h, h_small
+
         return h

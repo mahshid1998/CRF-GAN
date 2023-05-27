@@ -4,13 +4,7 @@
 # Hierarchical Amortized GAN for 3D High Resolution Medical Image Synthesis
 # https://ieeexplore.ieee.org/abstract/document/9770375
 
-
-
 from tensorboard.plugins.histogram import summary as histogram_summary
-
-
-
-
 import numpy as np
 import torch
 import os
@@ -70,31 +64,35 @@ parser.add_argument('--lambda-class', default=0.1, type=float,
 parser.add_argument('--num-class', default=0, type=int,
                     help='number of class for auxiliary classifier (0 if unconditional)')
 
+
 def main():
     # Configuration
     args = parser.parse_args()
 
     trainset = Volume_Dataset(data_dir=args.data_dir, fold=args.fold, num_class=args.num_class)
-    train_loader = torch.utils.data.DataLoader(trainset,batch_size=args.batch_size,drop_last=True,
-                                               shuffle=False,num_workers=args.workers)
+    train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, drop_last=True,
+                                               shuffle=False, num_workers=args.workers)
     gen_load = inf_train_gen(train_loader)
     
     if args.img_size == 256:
-        from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder, Sub_Encoder
+        # from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder, Sub_Encoder
+        from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder
     elif args.img_size == 128:
-        from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder, Sub_Encoder
+        print(" img size : 128")
+        # from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder, Sub_Encoder
+        from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder
     else:
         raise NotImplmentedError
         
     G = Generator(mode='train', latent_dim=args.latent_dim, num_class=args.num_class).cuda()
     D = Discriminator(num_class=args.num_class).cuda()
     E = Encoder().cuda()
-    Sub_E = Sub_Encoder(latent_dim=args.latent_dim).cuda()
+    # Sub_E = Sub_Encoder(latent_dim=args.latent_dim).cuda()
 
     g_optimizer = optim.Adam(G.parameters(), lr=args.lr_g, betas=(0.0,0.999), eps=1e-8)
     d_optimizer = optim.Adam(D.parameters(), lr=args.lr_d, betas=(0.0,0.999), eps=1e-8)
     e_optimizer = optim.Adam(E.parameters(), lr=args.lr_e, betas=(0.0,0.999), eps=1e-8)
-    sub_e_optimizer = optim.Adam(Sub_E.parameters(), lr=args.lr_e, betas=(0.0,0.999), eps=1e-8)
+    # sub_e_optimizer = optim.Adam(Sub_E.parameters(), lr=args.lr_e, betas=(0.0,0.999), eps=1e-8)
 
     # Resume from a previous checkpoint
     if args.continue_iter != 0:
@@ -116,20 +114,20 @@ def main():
         ckpt_path = './checkpoint/'+args.exp_name+'/Sub_E_iter'+str(args.continue_iter)+'.pth'
         ckpt = torch.load(ckpt_path, map_location='cuda')
         ckpt['model'] = trim_state_dict_name(ckpt['model'])
-        Sub_E.load_state_dict(ckpt['model'])
-        sub_e_optimizer.load_state_dict(ckpt['optimizer'])
+        #Sub_E.load_state_dict(ckpt['model'])
+        #sub_e_optimizer.load_state_dict(ckpt['optimizer'])
         del ckpt
         print("Ckpt", args.exp_name, args.continue_iter, "loaded.")
 
     G = nn.DataParallel(G)
     D = nn.DataParallel(D)
     E = nn.DataParallel(E)
-    Sub_E = nn.DataParallel(Sub_E)
+    # Sub_E = nn.DataParallel(Sub_E)
 
     G.train()
     D.train()
     E.train()
-    Sub_E.train()
+    # Sub_E.train()
 
     real_y = torch.ones((args.batch_size, 1)).cuda()
     fake_y = torch.zeros((args.batch_size, 1)).cuda()
@@ -151,54 +149,68 @@ def main():
         p.requires_grad = False
     for p in E.parameters():  
         p.requires_grad = False
-    for p in Sub_E.parameters():  
-        p.requires_grad = False
+    # for p in Sub_E.parameters():
+    #    p.requires_grad = False
 
     for iteration in range(args.continue_iter, args.num_iter):
 
         ###############################################
-        # Train Discriminator (D^H and D^L)
+        # Train Discriminator (D^H and D^L(No more:)))
         ###############################################
         for p in D.parameters():  
             p.requires_grad = True
-        for p in Sub_E.parameters():  
+        for p in E.parameters():
             p.requires_grad = False
+        #for p in Sub_E.parameters():
+        #    p.requires_grad = False
 
+        # loading image, cropping, downsampling
         real_images, class_label = gen_load.__next__()
         D.zero_grad()
         real_images = real_images.float().cuda()
         # low-res full volume of real image
-        real_images_small = F.interpolate(real_images, scale_factor = 0.25)
+        # real_images_small = F.interpolate(real_images, scale_factor = 0.25)
         
         # randomly select a high-res sub-volume from real image
         crop_idx = np.random.randint(0,args.img_size*7/8+1) # 256 * 7/8 + 1
         real_images_crop = real_images[:,:,crop_idx:crop_idx+args.img_size//8,:,:]
 
+
+        # performing forward and backpropag in D^H and D^L(omitted)
         if args.num_class == 0: # unconditional
-            y_real_pred = D(real_images_crop, real_images_small, crop_idx)
+            # y_real_pred = D(real_images_crop, real_images_small, crop_idx)
+            y_real_pred = D(real_images_crop, crop_idx)
             d_real_loss = loss_f(y_real_pred, real_labels)
 
             # random generation
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
             # fake_images: high-res sub-volume of generated image
             # fake_images_small: low-res full volume of generated image
+            '''
             fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=None)
             y_fake_pred = D(fake_images, fake_images_small, crop_idx)
-
+            '''
+            fake_images = G(noise, crop_idx=crop_idx, class_label=None)
+            y_fake_pred = D(fake_images, crop_idx)
         else: # conditional
             class_label_onehot = F.one_hot(class_label, num_classes=args.num_class)
             class_label = class_label.long().cuda()
             class_label_onehot = class_label_onehot.float().cuda()
 
-            y_real_pred, y_real_class = D(real_images_crop, real_images_small, crop_idx)
+            # y_real_pred, y_real_class = D(real_images_crop, real_images_small, crop_idx)
+            y_real_pred, y_real_class = D(real_images_crop, crop_idx)
             # GAN loss + auxiliary classifier loss
             d_real_loss = loss_f(y_real_pred, real_labels) + \
                           F.cross_entropy(y_real_class, class_label)
 
             # random generation
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
+            '''
             fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
             y_fake_pred, y_fake_class= D(fake_images, fake_images_small, crop_idx)
+            '''
+            fake_images = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
+            y_fake_pred, y_fake_class = D(fake_images, crop_idx)
 
         d_fake_loss = loss_f(y_fake_pred, fake_labels)
      
@@ -208,7 +220,7 @@ def main():
         d_optimizer.step()
 
         ###############################################
-        # Train Generator (G^A, G^H and G^L)
+        # Train Generator (G^A, G^H and G^L(Not any more:)))
         ###############################################
         for p in D.parameters():
             p.requires_grad = False
@@ -220,14 +232,22 @@ def main():
             
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
             if args.num_class == 0: # unconditional
+                '''
                 fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=None)
-
                 y_fake_g = D(fake_images, fake_images_small, crop_idx)
+                '''
+                fake_images = G(noise, crop_idx=crop_idx, class_label=None)
+                y_fake_g = D(fake_images, crop_idx)
+
                 g_loss = loss_f(y_fake_g, real_labels)
             else: # conditional
+                '''
                 fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
-
                 y_fake_g, y_fake_g_class = D(fake_images, fake_images_small, crop_idx)
+                '''
+                fake_images = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
+                y_fake_g, y_fake_g_class = D(fake_images, crop_idx)
+
                 g_loss = loss_f(y_fake_g, real_labels) + \
                          args.lambda_class * F.cross_entropy(y_fake_g_class, class_label)
 
@@ -253,10 +273,13 @@ def main():
         ###############################################
         # Train Sub Encoder (E^G)
         ###############################################
+        '''
         for p in Sub_E.parameters():
             p.requires_grad = True
         for p in E.parameters():
             p.requires_grad = False
+        
+        
         Sub_E.zero_grad()
         
         with torch.no_grad():
@@ -278,7 +301,8 @@ def main():
 
         sub_e_loss.backward()
         sub_e_optimizer.step()
-        
+        '''
+
         # Logging
         if iteration%args.log_iter == 0:
             summary_writer.add_scalar('D', d_loss.item(), iteration)
@@ -286,19 +310,19 @@ def main():
             summary_writer.add_scalar('D_fake', d_fake_loss.item(), iteration)
             summary_writer.add_scalar('G_fake', g_loss.item(), iteration)
             summary_writer.add_scalar('E', e_loss.item(), iteration)
-            summary_writer.add_scalar('Sub_E', sub_e_loss.item(), iteration)
+           # summary_writer.add_scalar('Sub_E', sub_e_loss.item(), iteration)
 
         ###############################################
         # Visualization with Tensorboard
-        ###############################################
-        # I changed
+        ################################################
+####################################################################################################    #####    # I changed
         #if iteration%200 ==0:
         if iteration % 20 == 0:
             print('[{}/{}]'.format(iteration,args.num_iter),
                   'D_real: {:<8.3}'.format(d_real_loss.item()),
                   'D_fake: {:<8.3}'.format(d_fake_loss.item()), 
                   'G_fake: {:<8.3}'.format(g_loss.item()),
-                  'Sub_E: {:<8.3}'.format(sub_e_loss.item()),
+                  #'Sub_E: {:<8.3}'.format(sub_e_loss.item()),
                   'E: {:<8.3}'.format(e_loss.item()))
 
             featmask = np.squeeze((0.5*real_images_crop[0]+0.5).data.cpu().numpy())
@@ -307,12 +331,14 @@ def main():
             plotting.plot_img(featmask,title="REAL",cut_coords=(args.img_size//2,args.img_size//2,args.img_size//16),figure=fig,draw_cross=False,cmap="gray")
             summary_writer.add_figure('Real', fig, iteration, close=True)
 
+            ''' sub_x_hat is output of Encoder of Low res path
             featmask = np.squeeze((0.5*sub_x_hat_rec[0]+0.5).data.cpu().numpy())
             featmask = nib.Nifti1Image(featmask.transpose((2,1,0)),affine = np.eye(4))
             fig = plt.figure()
             plotting.plot_img(featmask, title="REC", cut_coords=(args.img_size//2, args.img_size//2, args.img_size//16), figure=fig, draw_cross=False, cmap="gray")
             summary_writer.add_figure('Rec', fig, iteration, close=True)
-            
+            '''
+
             featmask = np.squeeze((0.5*fake_images[0]+0.5).data.cpu().numpy())
             featmask = nib.Nifti1Image(featmask.transpose((2,1,0)),affine = np.eye(4))
             fig = plt.figure()
@@ -320,7 +346,7 @@ def main():
             summary_writer.add_figure('Fake', fig, iteration, close=True)
 
 
-            # my code
+####################################################### my code to capture memory usage
             with torch.autograd.profiler.profile(use_cuda=True) as prof:
                 # Get the current memory usage
                 if torch.cuda.is_available():
@@ -335,13 +361,13 @@ def main():
                 )
                 summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
             # end of my code
-        # I changed
+#########################################################I changed
         #if iteration > 30000 and (iteration+1)%500 == 0:
         if iteration % 99 == 0:
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
             torch.save({'model':E.state_dict(), 'optimizer':e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/E_iter'+str(iteration+1)+'.pth')
-            torch.save({'model':Sub_E.state_dict(), 'optimizer':sub_e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/Sub_E_iter'+str(iteration+1)+'.pth')
+            #torch.save({'model':Sub_E.state_dict(), 'optimizer':sub_e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/Sub_E_iter'+str(iteration+1)+'.pth')
 
 
 if __name__ == '__main__':
