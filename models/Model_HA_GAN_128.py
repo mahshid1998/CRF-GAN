@@ -5,6 +5,7 @@ from torch import nn
 from torch import optim
 from torch.nn import functional as F
 from models.layers import SNConv3d, SNLinear
+from sklearn_crfsuite import CRF
 
 '''
 No usage where found
@@ -147,7 +148,25 @@ class Discriminator(nn.Module):
             #return (h_logit+ h_small_logit)/2.
             return h_logit
 
+    def get_embeddings(self, h, crop_idx):
+        h = F.leaky_relu(self.conv2(h), negative_slope=0.2)
+        h = F.leaky_relu(self.conv3(h), negative_slope=0.2)
+        h = F.leaky_relu(self.conv4(h), negative_slope=0.2)
+        h = F.leaky_relu(self.conv5(h), negative_slope=0.2)
+        h = F.leaky_relu(self.conv6(h), negative_slope=0.2)
+        h = F.leaky_relu(self.conv7(h), negative_slope=0.2).squeeze()
+        h = torch.cat([h, (crop_idx / 112. * torch.ones((h.size(0), 1))).cuda()], 1)  # 128*7/8
+        h = F.leaky_relu(self.fc1(h), negative_slope=0.2)
+        return h
 
+class CrfClassifier():
+    def __int__(self):
+        self.crf = CRF(algorithm='lbfgs', c1=0.1, c2=0.1, max_iterations=100, all_possible_transitions=True)
+    def train(self, embedding_train, y_train):
+        self.crf.fit(embedding_train, y_train)
+
+    def predict(self, embeddings):
+        return self.crf.predict(embeddings)
 '''
 This is G_L
 class Sub_Generator(nn.Module):
