@@ -111,9 +111,9 @@ def main():
         ckpt['model'] = trim_state_dict_name(ckpt['model'])
         E.load_state_dict(ckpt['model'])
         e_optimizer.load_state_dict(ckpt['optimizer'])
-        ckpt_path = './checkpoint/'+args.exp_name+'/Sub_E_iter'+str(args.continue_iter)+'.pth'
-        ckpt = torch.load(ckpt_path, map_location='cuda')
-        ckpt['model'] = trim_state_dict_name(ckpt['model'])
+        # ckpt_path = './checkpoint/'+args.exp_name+'/Sub_E_iter'+str(args.continue_iter)+'.pth'
+        # ckpt = torch.load(ckpt_path, map_location='cuda')
+        # ckpt['model'] = trim_state_dict_name(ckpt['model'])
         #Sub_E.load_state_dict(ckpt['model'])
         #sub_e_optimizer.load_state_dict(ckpt['optimizer'])
         del ckpt
