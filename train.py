@@ -78,7 +78,7 @@ def main():
         # from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder, Sub_Encoder
         from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder
     elif args.img_size == 128:
-        print(" img size : 128")
+        print("img size : 128")
         # from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder, Sub_Encoder
         from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder
     else:
@@ -174,7 +174,7 @@ def main():
         # randomly select a high-res sub-volume from real image
         crop_idx = np.random.randint(0,args.img_size*7/8+1) # 256 * 7/8 + 1
         real_images_crop = real_images[:,:,crop_idx:crop_idx+args.img_size//8,:,:]
-
+        print(f"real images crop shape:{real_images_crop.shape}, real images shape: {real_images.shape}")
 
         # performing forward and backpropag in D^H and D^L(omitted)
         if args.num_class == 0: # unconditional
@@ -364,6 +364,7 @@ def main():
 #########################################################I changed
         #if iteration > 30000 and (iteration+1)%500 == 0:
         if iteration % 99 == 0:
+            print(iteration)
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
             torch.save({'model':E.state_dict(), 'optimizer':e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/E_iter'+str(iteration+1)+'.pth')
