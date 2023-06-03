@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import gc
 
 # train HA-GAN
 # Hierarchical Amortized GAN for 3D High Resolution Medical Image Synthesis
@@ -78,7 +79,7 @@ def main():
         # from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder, Sub_Encoder
         from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder
     elif args.img_size == 128:
-        print("img size : 128")
+        # print("img size : 128")
         # from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder, Sub_Encoder
         from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder
     else:
@@ -153,7 +154,9 @@ def main():
     #    p.requires_grad = False
 
     for iteration in range(args.continue_iter, args.num_iter):
-
+        torch.cuda.empty_cache()
+        print("iterarion :",iteration)
+        print(f"Mem 1: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
         ###############################################
         # Train Discriminator (D^H and D^L(No more:)))
         ###############################################
@@ -166,7 +169,7 @@ def main():
 
         # loading image, cropping, downsampling
         real_images, class_label = gen_load.__next__()
-        D.zero_grad()
+        # D.zero_grad()
         real_images = real_images.float().cuda()
         # low-res full volume of real image
         # real_images_small = F.interpolate(real_images, scale_factor = 0.25)
@@ -178,6 +181,7 @@ def main():
         #print(f"real images crop shape:{real_images_crop.shape}, real images shape: {real_images.shape}")
 
         # performing forward and backpropag in D^H and D^L(omitted)
+        # print(f"Mem after data loaded and manipulated: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
         if args.num_class == 0: # unconditional
             # y_real_pred = D(real_images_crop, real_images_small, crop_idx)
             y_real_pred = D(real_images_crop, crop_idx, real_images)
@@ -193,8 +197,9 @@ def main():
             fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=None)
             y_fake_pred = D(fake_images, fake_images_small, crop_idx)
             '''
-            fake_images, fake_images_for_crf = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
-            y_fake_pred = D(fake_images, crop_idx, fake_images_for_crf)
+            fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
+            fake_images = G(noise, crop_idx=crop_idx, class_label=None)
+            y_fake_pred = D(fake_images, crop_idx, fake_img_for_crf)
         else: # conditional
             class_label_onehot = F.one_hot(class_label, num_classes=args.num_class)
             class_label = class_label.long().cuda()
@@ -212,18 +217,19 @@ def main():
             fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
             y_fake_pred, y_fake_class= D(fake_images, fake_images_small, crop_idx)
             '''
-            fake_images, fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
+            fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
+            fake_images = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
             y_fake_pred, y_fake_class = D(fake_images, crop_idx, fake_img_for_crf)
 
         d_fake_loss = loss_f(y_fake_pred, fake_labels)
      
         d_loss = d_real_loss + d_fake_loss
         d_loss.backward()
-
         d_optimizer.step()
+        D.zero_grad()
+        # d_optimizer.zero_grad()
+        print(f"Mem after D: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
 
-        exit(10)
-# ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
         ###############################################
         # Train Generator (G^A, G^H and G^L(Not any more:)))
         ###############################################
@@ -233,32 +239,40 @@ def main():
             p.requires_grad = True
             
         for iters in range(args.g_iter):
-            G.zero_grad()
-            
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
+            print(f"Active G: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
             if args.num_class == 0: # unconditional
                 '''
                 fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=None)
                 y_fake_g = D(fake_images, fake_images_small, crop_idx)
                 '''
+                with torch.no_grad():
+                    fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
+                print(f"Active G + fake crf: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
                 fake_images = G(noise, crop_idx=crop_idx, class_label=None)
-                y_fake_g = D(fake_images, crop_idx)
-
+                print(f"Active G ++: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
+                y_fake_g = D(fake_images, crop_idx, fake_img_for_crf)
                 g_loss = loss_f(y_fake_g, real_labels)
             else: # conditional
                 '''
                 fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
                 y_fake_g, y_fake_g_class = D(fake_images, fake_images_small, crop_idx)
-                '''
-                fake_images = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
-                y_fake_g, y_fake_g_class = D(fake_images, crop_idx)
+                
+                fake_images, fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
+                y_fake_g, y_fake_g_class = D(fake_images, crop_idx, fake_img_for_crf)
 
                 g_loss = loss_f(y_fake_g, real_labels) + \
                          args.lambda_class * F.cross_entropy(y_fake_g_class, class_label)
+                '''
 
             g_loss.backward()
             g_optimizer.step()
-                          
+
+            print(f"Mem after G: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
+            G.zero_grad()
+            g_optimizer.zero_grad()
+            print(f"After zero Optimizer: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
+
         ###############################################
         # Train Encoder (E^H)
         ###############################################
@@ -266,7 +280,7 @@ def main():
             p.requires_grad = True
         for p in G.parameters():
             p.requires_grad = False
-        E.zero_grad()
+        # E.zero_grad()
         
         z_hat = E(real_images_crop)
         x_hat = G(z_hat, crop_idx=None)
@@ -274,7 +288,8 @@ def main():
         e_loss = loss_mse(x_hat, real_images_crop)
         e_loss.backward()
         e_optimizer.step()
-
+        print(f"Mem after E: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
+        E.zero_grad()
         ###############################################
         # Train Sub Encoder (E^G)
         ###############################################

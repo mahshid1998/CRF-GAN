@@ -181,7 +181,7 @@ class Discriminator(nn.Module):
 
     #    self.sub_D = Sub_Discriminator(num_class)
         # CRF
-        self.crf = CRF(num_nodes=112, iteration=10)
+        self.crf = CRF(num_nodes=113, iteration=10)
 
     # def forward(self, h, h_small, crop_idx):
     def forward(self, h, crop_idx, whole_images):
@@ -219,7 +219,7 @@ class Discriminator(nn.Module):
             h_whole = whole_images
             embedings = []
             labels = []
-            for j in range(h_whole.shape[2] - window_size):
+            for j in range(h_whole.shape[2] - window_size +1):
                 h = h_whole[:, :, j:j + window_size, :, :]
                 h = F.leaky_relu(self.conv2(h), negative_slope=0.2)
                 # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
@@ -353,6 +353,20 @@ class Generator(nn.Module):
             else:
                 h = h_latent
 
+        # print(f"Before crf in gen: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)} ")
+        if crf_need:
+            h_crf = F.interpolate(h_latent, scale_factor=2)
+            h_crf = self.tp_conv6(h_crf)
+            h_crf = self.relu(self.bn6(h_crf)).detach()  # (64, 64, 64)
+            h_crf = F.interpolate(h_crf, scale_factor=2)
+            h_crf = self.tp_conv7(h_crf)
+            h_crf = torch.tanh(h_crf) # (128,128,128)
+                  # f"need of h:{(h_crf.element_size() * h_crf.nelement())/(1024*1024*1024)}")
+            # h_crf = torch.rand([4,1,128,128,128])
+            # print(f"after crf in gen: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)} ")
+            return h_crf.detach()
+
+
         # Generate from latent feature
         h = F.interpolate(h, scale_factor=2)
         h = self.tp_conv6(h)
@@ -362,24 +376,6 @@ class Generator(nn.Module):
         h = self.tp_conv7(h)
 
         h = torch.tanh(h)  # (128, 128, 128)
-
-        print(f"Mem allocated before crf in gen: {torch.cuda.memory_allocated()/(1024*1024 * 1024)}")
-        with torch.no_grad():
-            if crf_need:
-                h_crf = F.interpolate(h_latent, scale_factor=2)
-
-                h_crf = self.tp_conv6(h_crf)
-                h_crf = self.relu(self.bn6(h_crf))  # (64, 64, 64)
-
-                h_crf = F.interpolate(h_crf, scale_factor=2)
-                h_crf = self.tp_conv7(h_crf)
-
-                h_crf = torch.tanh(h_crf)  # (128,128,128)
-                print(f"Mem allocated after crf in gen: {torch.cuda.memory_allocated() / (1024 * 1024*1024)} "
-                      f"need of h:{(h_crf.element_size() * h_crf.nelement())/(1024*1024*1024)}")
-                print(h.shape, h_crf.shape)
-                return h, h_crf
-
         # if crop_idx != None and self.mode == "train":
         # return h, h_small
 
