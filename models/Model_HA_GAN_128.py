@@ -6,6 +6,8 @@ from torch import optim
 from torch.nn import functional as F
 from models.layers import SNConv3d, SNLinear
 
+import sys
+import gc
 '''
 No usage where found
 class Code_Discriminator(nn.Module):
@@ -108,7 +110,7 @@ class CRF(nn.Module):
         """Initialize the CRF module
 
         Args:
-            num_nodes: int, number of nodes/patches within the fully CRF
+            num_nodes: int, number of nodes/patches within the fully CRF (it means the number of embeddings that I have not batches, for now I guess this)
             iteration: int, number of mean field iterations, e.g. 10
         """
         super(CRF, self).__init__()
@@ -135,7 +137,7 @@ class CRF(nn.Module):
             logits: 3D tensor with shape of [batch_size, num_nodes, 1], the
             logit of each patch within the grid being tumor after CRF
         '''
-        print(f"last embeddings {feats.shape}")
+        # print(f"last embeddings {feats.shape}, logit size which should be [4, 112, 1]{logits.shape}")
         feats_norm = torch.norm(feats, p=2, dim=2, keepdim=True)
         pairwise_norm = torch.bmm(feats_norm, torch.transpose(feats_norm, 1, 2))
         pairwise_dot = torch.bmm(feats, torch.transpose(feats, 1, 2))
@@ -179,32 +181,21 @@ class Discriminator(nn.Module):
 
     #    self.sub_D = Sub_Discriminator(num_class)
         # CRF
-        num_nodes = 16
-        iteration = 10
-        self.crf = CRF(num_nodes, iteration)
+        self.crf = CRF(num_nodes=112, iteration=10)
 
     # def forward(self, h, h_small, crop_idx):
-    def forward(self, h, crop_idx):
-        print(f"layer output shape{h.shape}")
+    def forward(self, h, crop_idx, whole_images):
+        # print(f"layer output shape{h.shape}")
         h = F.leaky_relu(self.conv2(h), negative_slope=0.2)
-        print(f"layer output shape{h.shape}")
-
         h = F.leaky_relu(self.conv3(h), negative_slope=0.2)
-        print(f"layer output shape{h.shape}")
-
         h = F.leaky_relu(self.conv4(h), negative_slope=0.2)
-        print(f"layer output shape{h.shape}")
-
         h = F.leaky_relu(self.conv5(h), negative_slope=0.2)
-        print(f"layer output shape{h.shape}")
-
         h = F.leaky_relu(self.conv6(h), negative_slope=0.2)
-        print(f"layer output shape{h.shape}")
-
-        h1 = F.leaky_relu(self.conv7(h), negative_slope=0.2).squeeze()
-        print(f"layer output shape{h1.shape}")
-
-        h = torch.cat([h1, (crop_idx / 112. * torch.ones((h1.size(0), 1))).cuda()], 1)  # 128*7/8
+        h = F.leaky_relu(self.conv7(h), negative_slope=0.2).squeeze()
+        # print(h.shape, crop_idx)
+        h = torch.cat([h, (crop_idx / 112. * torch.ones((h.size(0), 1))).cuda()], 1)  # 128*7/8
+        # print(h.shape, h[1,128]*112)
+        # exit(10)
         h = F.leaky_relu(self.fc1(h), negative_slope=0.2)
         h_logit = self.fc2(h)
         if self.num_class > 0:
@@ -216,10 +207,51 @@ class Discriminator(nn.Module):
         else:
             # h_small_logit = self.sub_D(h_small)
             # return (h_logit+ h_small_logit)/2.
-            ## return h_logit
-            h_crf_logit = self.crf(h1, h_logit)
-            return (h_logit + h_crf_logit)/2.
+            crf_embedds, labels_embedds = self.embeddings_of_whole_image(whole_images, crop_idx)
+            #return h_logit
+            h_crf_logit = self.crf(crf_embedds, labels_embedds)
+            #print(f" shape of crf output is: {h_crf_logit.shape}, shape that we need is right? {h_crf_logit[:,crop_idx,:].shape}")
+            #exit(10)
+            return (h_logit + h_crf_logit[:, crop_idx, :])/2.
 
+    def embeddings_of_whole_image(self, whole_images, crop_idx, window_size=16):
+        with torch.no_grad():
+            h_whole = whole_images
+            embedings = []
+            labels = []
+            for j in range(h_whole.shape[2] - window_size):
+                h = h_whole[:, :, j:j + window_size, :, :]
+                h = F.leaky_relu(self.conv2(h), negative_slope=0.2)
+                # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
+                h = F.leaky_relu(self.conv3(h), negative_slope=0.2)
+                # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
+
+                h = F.leaky_relu(self.conv4(h), negative_slope=0.2)
+                # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
+
+                h = F.leaky_relu(self.conv5(h), negative_slope=0.2)
+                # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
+
+                h = F.leaky_relu(self.conv6(h), negative_slope=0.2)
+                # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
+
+                h = F.leaky_relu(self.conv7(h), negative_slope=0.2).squeeze()
+                # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
+                embedings.append(h)
+                # print(j, "-------------------------------------------------------------------------------")
+                # print(f" embedding size: {sys.getsizeof(embedings)/(1024*1024)}, Mem allocated: {torch.cuda.memory_allocated()/(1024*1024)}, "
+                #      f"need of h:{(h.element_size() * h.nelement())/(1024*1024)}")
+                h = torch.cat([h, (crop_idx / 112. * torch.ones((h.size(0), 1))).cuda()], 1)  # 128*7/8
+                h = F.leaky_relu(self.fc1(h), negative_slope=0.2)
+                h_logit = self.fc2(h)
+                labels.append(h_logit)
+                del h
+                del h_logit
+            full_embeddings = torch.stack(embedings, dim=1)
+            all_labels = torch.stack(labels, dim=1)
+            # print(full_embeddings.shape, "this is embeddings of all images", all_labels.shape, "labels shape")
+            # exit(10)
+        return full_embeddings, all_labels
 
 
 '''
@@ -287,7 +319,7 @@ class Generator(nn.Module):
         # G^L
         # self.sub_G = Sub_Generator(channel=_c//2)
 
-    def forward(self, h, crop_idx=None, class_label=None):
+    def forward(self, h, crop_idx=None, class_label=None, crf_need=False):
 
         # Generate from random noise
         if crop_idx != None or self.mode == 'eval':
@@ -330,6 +362,23 @@ class Generator(nn.Module):
         h = self.tp_conv7(h)
 
         h = torch.tanh(h)  # (128, 128, 128)
+
+        print(f"Mem allocated before crf in gen: {torch.cuda.memory_allocated()/(1024*1024 * 1024)}")
+        with torch.no_grad():
+            if crf_need:
+                h_crf = F.interpolate(h_latent, scale_factor=2)
+
+                h_crf = self.tp_conv6(h_crf)
+                h_crf = self.relu(self.bn6(h_crf))  # (64, 64, 64)
+
+                h_crf = F.interpolate(h_crf, scale_factor=2)
+                h_crf = self.tp_conv7(h_crf)
+
+                h_crf = torch.tanh(h_crf)  # (128,128,128)
+                print(f"Mem allocated after crf in gen: {torch.cuda.memory_allocated() / (1024 * 1024*1024)} "
+                      f"need of h:{(h_crf.element_size() * h_crf.nelement())/(1024*1024*1024)}")
+                print(h.shape, h_crf.shape)
+                return h, h_crf
 
         # if crop_idx != None and self.mode == "train":
         # return h, h_small

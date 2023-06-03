@@ -161,7 +161,7 @@ def main():
             p.requires_grad = True
         for p in E.parameters():
             p.requires_grad = False
-        #for p in Sub_E.parameters():
+        # for p in Sub_E.parameters():
         #    p.requires_grad = False
 
         # loading image, cropping, downsampling
@@ -170,16 +170,19 @@ def main():
         real_images = real_images.float().cuda()
         # low-res full volume of real image
         # real_images_small = F.interpolate(real_images, scale_factor = 0.25)
-        
+
         # randomly select a high-res sub-volume from real image
-        crop_idx = np.random.randint(0,args.img_size*7/8+1) # 256 * 7/8 + 1
-        real_images_crop = real_images[:,:,crop_idx:crop_idx+args.img_size//8,:,:]
-        print(f"real images crop shape:{real_images_crop.shape}, real images shape: {real_images.shape}")
+        crop_idx = np.random.randint(0, args.img_size*7/8+1)  # 256 * 7/8 + 1
+        real_images_crop = real_images[:, :, crop_idx:crop_idx+args.img_size//8, :, :]
+
+        #print(f"real images crop shape:{real_images_crop.shape}, real images shape: {real_images.shape}")
 
         # performing forward and backpropag in D^H and D^L(omitted)
         if args.num_class == 0: # unconditional
             # y_real_pred = D(real_images_crop, real_images_small, crop_idx)
-            y_real_pred = D(real_images_crop, crop_idx)
+            y_real_pred = D(real_images_crop, crop_idx, real_images)
+
+            # y_real_pred = D(real_images_crop, crop_idx)
             d_real_loss = loss_f(y_real_pred, real_labels)
 
             # random generation
@@ -190,15 +193,15 @@ def main():
             fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=None)
             y_fake_pred = D(fake_images, fake_images_small, crop_idx)
             '''
-            fake_images = G(noise, crop_idx=crop_idx, class_label=None)
-            y_fake_pred = D(fake_images, crop_idx)
+            fake_images, fake_images_for_crf = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
+            y_fake_pred = D(fake_images, crop_idx, fake_images_for_crf)
         else: # conditional
             class_label_onehot = F.one_hot(class_label, num_classes=args.num_class)
             class_label = class_label.long().cuda()
             class_label_onehot = class_label_onehot.float().cuda()
 
             # y_real_pred, y_real_class = D(real_images_crop, real_images_small, crop_idx)
-            y_real_pred, y_real_class = D(real_images_crop, crop_idx)
+            y_real_pred, y_real_class = D(real_images_crop, crop_idx, real_images)
             # GAN loss + auxiliary classifier loss
             d_real_loss = loss_f(y_real_pred, real_labels) + \
                           F.cross_entropy(y_real_class, class_label)
@@ -209,8 +212,8 @@ def main():
             fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
             y_fake_pred, y_fake_class= D(fake_images, fake_images_small, crop_idx)
             '''
-            fake_images = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
-            y_fake_pred, y_fake_class = D(fake_images, crop_idx)
+            fake_images, fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
+            y_fake_pred, y_fake_class = D(fake_images, crop_idx, fake_img_for_crf)
 
         d_fake_loss = loss_f(y_fake_pred, fake_labels)
      
@@ -219,6 +222,8 @@ def main():
 
         d_optimizer.step()
 
+        exit(10)
+# ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
         ###############################################
         # Train Generator (G^A, G^H and G^L(Not any more:)))
         ###############################################
@@ -350,10 +355,10 @@ def main():
             with torch.autograd.profiler.profile(use_cuda=True) as prof:
                 # Get the current memory usage
                 if torch.cuda.is_available():
-                    memory_usage = torch.cuda.memory_allocated() / 1024 / 1024  # convert bytes to MB
+                    memory_usage = torch.cuda.memory_allocated() / 1024**3  # convert bytes to GB
                 else:
-                    memory_usage = torch.cuda.memory_allocated() / 1024 / 1024 + \
-                                   torch.cuda.memory_reserved() / 1024 / 1024
+                    memory_usage = torch.cuda.memory_allocated() / 1024**3 + \
+                                   torch.cuda.memory_reserved() / 1024**3
                 # Create a histogram summary to log memory usage
                 summary = histogram_summary.histogram_pb(
                     "memory_usage",
