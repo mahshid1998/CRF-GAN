@@ -207,14 +207,14 @@ class Discriminator(nn.Module):
         else:
             # h_small_logit = self.sub_D(h_small)
             # return (h_logit+ h_small_logit)/2.
-            crf_embedds, labels_embedds = self.embeddings_of_whole_image(whole_images, crop_idx)
+            crf_embedds, labels_embedds = self.embeddings_of_whole_image(whole_images)
             #return h_logit
             h_crf_logit = self.crf(crf_embedds, labels_embedds)
-            #print(f" shape of crf output is: {h_crf_logit.shape}, shape that we need is right? {h_crf_logit[:,crop_idx,:].shape}")
-            #exit(10)
+            # print(f" shape of crf output is: {h_crf_logit.shape}, shape that we need is right? {h_crf_logit[:,crop_idx,:].shape}, shape of D output is:{h_logit.shape}")
+            # exit(10)
             return (h_logit + h_crf_logit[:, crop_idx, :])/2.
 
-    def embeddings_of_whole_image(self, whole_images, crop_idx, window_size=16):
+    def embeddings_of_whole_image(self, whole_images, window_size=16):
         with torch.no_grad():
             h_whole = whole_images
             embedings = []
@@ -241,14 +241,17 @@ class Discriminator(nn.Module):
                 # print(j, "-------------------------------------------------------------------------------")
                 # print(f" embedding size: {sys.getsizeof(embedings)/(1024*1024)}, Mem allocated: {torch.cuda.memory_allocated()/(1024*1024)}, "
                 #      f"need of h:{(h.element_size() * h.nelement())/(1024*1024)}")
-                h = torch.cat([h, (crop_idx / 112. * torch.ones((h.size(0), 1))).cuda()], 1)  # 128*7/8
+                h = torch.cat([h, (j / 112. * torch.ones((h.size(0), 1))).cuda()], 1)  # 128*7/8
                 h = F.leaky_relu(self.fc1(h), negative_slope=0.2)
                 h_logit = self.fc2(h)
                 labels.append(h_logit)
-                del h
-                del h_logit
+                # del h
+                # del h_logit
+
             full_embeddings = torch.stack(embedings, dim=1)
             all_labels = torch.stack(labels, dim=1)
+            del h
+            del h_logit
             # print(full_embeddings.shape, "this is embeddings of all images", all_labels.shape, "labels shape")
             # exit(10)
         return full_embeddings, all_labels
