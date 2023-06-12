@@ -210,8 +210,9 @@ class Discriminator(nn.Module):
             crf_embedds, labels_embedds = self.embeddings_of_whole_image(whole_images)
             #return h_logit
             h_crf_logit = self.crf(crf_embedds, labels_embedds)
-            # print(f" shape of crf output is: {h_crf_logit.shape}, shape that we need is right? {h_crf_logit[:,crop_idx,:].shape}, shape of D output is:{h_logit.shape}")
-            # exit(10)
+
+            #print(f" shape of crf output is: {h_crf_logit.shape},\nlogits of D: {h_logit},\nlogits of crf:{h_crf_logit[:,:,:]}")
+            #exit(10)
             return (h_logit + h_crf_logit[:, crop_idx, :])/2.
 
     def embeddings_of_whole_image(self, whole_images, window_size=16):
