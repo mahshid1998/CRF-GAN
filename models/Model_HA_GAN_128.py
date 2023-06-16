@@ -361,14 +361,14 @@ class Generator(nn.Module):
         if crf_need:
             h_crf = F.interpolate(h_latent, scale_factor=2)
             h_crf = self.tp_conv6(h_crf)
-            h_crf = self.relu(self.bn6(h_crf)).detach()  # (64, 64, 64)
+            h_crf = self.relu(self.bn6(h_crf)) # (64, 64, 64)
             h_crf = F.interpolate(h_crf, scale_factor=2)
             h_crf = self.tp_conv7(h_crf)
             h_crf = torch.tanh(h_crf) # (128,128,128)
                   # f"need of h:{(h_crf.element_size() * h_crf.nelement())/(1024*1024*1024)}")
             # h_crf = torch.rand([4,1,128,128,128])
             # print(f"after crf in gen: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)} ")
-            return h_crf.detach()
+            return h_crf
 
 
         # Generate from latent feature

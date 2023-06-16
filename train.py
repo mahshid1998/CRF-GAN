@@ -167,7 +167,7 @@ def main():
 
         # loading image, cropping, down sampling
         real_images, class_label = gen_load.__next__()
-        # D.zero_grad()
+        D.zero_grad()
         real_images = real_images.float().cuda()
         # low-res full volume of real image
         # real_images_small = F.interpolate(real_images, scale_factor = 0.25)
@@ -221,7 +221,7 @@ def main():
         d_loss = d_real_loss + d_fake_loss
         d_loss.backward()
         d_optimizer.step()
-        D.zero_grad()
+        # D.zero_grad()
         # d_optimizer.zero_grad()
         # print(f"Mem after D: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
         # if iteration == 5:
@@ -235,6 +235,7 @@ def main():
             p.requires_grad = True
             
         for iters in range(args.g_iter):
+            G.zero_grad()
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
             # print(f"Active G: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
             if args.num_class == 0:  # unconditional
@@ -265,8 +266,8 @@ def main():
             g_optimizer.step()
 
             # print(f"Mem after G: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
-            G.zero_grad()
-            g_optimizer.zero_grad()
+            # G.zero_grad()
+            # g_optimizer.zero_grad()
             # print(f"After zero Optimizer: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
 
         ###############################################
