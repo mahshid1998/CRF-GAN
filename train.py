@@ -19,12 +19,12 @@ from nilearn import plotting
 
 from utils import trim_state_dict_name, inf_train_gen
 from volume_dataset import Volume_Dataset
-
+from torch.backends import cudnn
 import matplotlib.pyplot as plt
 
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
-torch.backends.cudnn.benchmark = True
+cudnn.benchmark = True
 
 parser = argparse.ArgumentParser(description='PyTorch HA-GAN Training')
 parser.add_argument('--batch-size', default=4, type=int,
@@ -74,11 +74,10 @@ def main():
     gen_load = inf_train_gen(train_loader)
     
     if args.img_size == 256:
-        # from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder, Sub_Encoder
         from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder
     elif args.img_size == 128:
-        # print("img size : 128")
-        # from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder, Sub_Encoder
+        from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder
+    elif args.img_size == 64:
         from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder
     else:
         raise NotImplmentedError
@@ -152,8 +151,7 @@ def main():
     #    p.requires_grad = False
 
     for iteration in range(args.continue_iter, args.num_iter):
-        torch.cuda.empty_cache()
-        print("iteration :", iteration)
+        print("iteration eshh :", iteration)
         # print(f"Mem 1: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
         ###############################################
         # Train Discriminator (D^H and D^L(No more:)))
@@ -277,7 +275,7 @@ def main():
             p.requires_grad = True
         for p in G.parameters():
             p.requires_grad = False
-        # E.zero_grad()
+        E.zero_grad()
         
         z_hat = E(real_images_crop)
         x_hat = G(z_hat, crop_idx=None)
@@ -286,7 +284,7 @@ def main():
         e_loss.backward()
         e_optimizer.step()
         # print(f"Mem after E: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
-        E.zero_grad()
+        # E.zero_grad()
         ###############################################
         # Train Sub Encoder (E^G)
         ###############################################
