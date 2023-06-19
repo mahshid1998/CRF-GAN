@@ -77,19 +77,25 @@ def main():
         from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder
     elif args.img_size == 128:
         from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder
+        crf_num_nodes = 113
     elif args.img_size == 64:
-        from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder
+        from models.Model_HA_GAN_64 import Discriminator, Generator, Encoder, CRF
+        crf_num_nodes = 57
     else:
         raise NotImplmentedError
         
     G = Generator(mode='train', latent_dim=args.latent_dim, num_class=args.num_class).cuda()
     D = Discriminator(num_class=args.num_class).cuda()
     E = Encoder().cuda()
+    crf = CRF(num_nodes=crf_num_nodes, iteration=10).cuda()
     # Sub_E = Sub_Encoder(latent_dim=args.latent_dim).cuda()
 
     g_optimizer = optim.Adam(G.parameters(), lr=args.lr_g, betas=(0.0, 0.999), eps=1e-8)
     d_optimizer = optim.Adam(D.parameters(), lr=args.lr_d, betas=(0.0, 0.999), eps=1e-8)
     e_optimizer = optim.Adam(E.parameters(), lr=args.lr_e, betas=(0.0, 0.999), eps=1e-8)
+    # fixme
+    crf_optimizer = optim.Adam(crf.parameters(), lr=args.lr_e, betas=(0.0, 0.999), eps=1e-8)
+
     # sub_e_optimizer = optim.Adam(Sub_E.parameters(), lr=args.lr_e, betas=(0.0,0.999), eps=1e-8)
 
     # Resume from a previous checkpoint
@@ -99,32 +105,38 @@ def main():
         ckpt['model'] = trim_state_dict_name(ckpt['model'])
         G.load_state_dict(ckpt['model'])
         g_optimizer.load_state_dict(ckpt['optimizer'])
+
         ckpt_path = './checkpoint/'+args.exp_name+'/D_iter'+str(args.continue_iter)+'.pth'
         ckpt = torch.load(ckpt_path, map_location='cuda')
         ckpt['model'] = trim_state_dict_name(ckpt['model'])
         D.load_state_dict(ckpt['model'])
         d_optimizer.load_state_dict(ckpt['optimizer'])
+
         ckpt_path = './checkpoint/'+args.exp_name+'/E_iter'+str(args.continue_iter)+'.pth'
         ckpt = torch.load(ckpt_path, map_location='cuda')
         ckpt['model'] = trim_state_dict_name(ckpt['model'])
         E.load_state_dict(ckpt['model'])
         e_optimizer.load_state_dict(ckpt['optimizer'])
-        # ckpt_path = './checkpoint/'+args.exp_name+'/Sub_E_iter'+str(args.continue_iter)+'.pth'
-        # ckpt = torch.load(ckpt_path, map_location='cuda')
-        # ckpt['model'] = trim_state_dict_name(ckpt['model'])
-        # Sub_E.load_state_dict(ckpt['model'])
-        # sub_e_optimizer.load_state_dict(ckpt['optimizer'])
+
+        # fixme
+        ckpt_path = './checkpoint/'+args.exp_name+'/crf_iter'+str(args.continue_iter)+'.pth'
+        ckpt = torch.load(ckpt_path, map_location='cuda')
+        ckpt['model'] = trim_state_dict_name(ckpt['model'])
+        crf.load_state_dict(ckpt['model'])
+        crf_optimizer.load_state_dict(ckpt['optimizer'])
         del ckpt
         print("Ckpt", args.exp_name, args.continue_iter, "loaded.")
 
     G = nn.DataParallel(G)
     D = nn.DataParallel(D)
     E = nn.DataParallel(E)
+    crf = nn.DataParallel(crf)
     # Sub_E = nn.DataParallel(Sub_E)
 
     G.train()
     D.train()
     E.train()
+    crf.train()
     # Sub_E.train()
 
     # real_y = torch.ones((args.batch_size, 1)).cuda()
@@ -147,18 +159,20 @@ def main():
         p.requires_grad = False
     for p in E.parameters():  
         p.requires_grad = False
+    for p in crf.parameters():
+        p.requires_grad = False
     # for p in Sub_E.parameters():
     #    p.requires_grad = False
 
     for iteration in range(args.continue_iter, args.num_iter):
-        print("iteration eshh :", iteration)
+        # print("iteration :", iteration)
         # print(f"Mem 1: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
         ###############################################
         # Train Discriminator (D^H and D^L(No more:)))
         ###############################################
         for p in D.parameters():  
             p.requires_grad = True
-        for p in E.parameters():
+        for p in crf.parameters():
             p.requires_grad = False
         # for p in Sub_E.parameters():
         #    p.requires_grad = False
@@ -180,7 +194,7 @@ def main():
         # print(f"Mem after data loaded and manipulated: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
         if args.num_class == 0:  # unconditional
             # y_real_pred = D(real_images_crop, real_images_small, crop_idx)
-            y_real_pred = D(real_images_crop, crop_idx, real_images)
+            y_real_pred = D(real_images_crop, crop_idx)
             # y_real_pred = D(real_images_crop, crop_idx)
             d_real_loss = loss_f(y_real_pred, real_labels)
             # random generation
@@ -191,9 +205,9 @@ def main():
             fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=None)
             y_fake_pred = D(fake_images, fake_images_small, crop_idx)
             '''
-            fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
+            # fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
             fake_images = G(noise, crop_idx=crop_idx, class_label=None)
-            y_fake_pred = D(fake_images, crop_idx, fake_img_for_crf)
+            y_fake_pred = D(fake_images, crop_idx)
         else:  # conditional
             class_label_onehot = F.one_hot(class_label, num_classes=args.num_class)
             class_label = class_label.long().cuda()
@@ -231,7 +245,7 @@ def main():
             p.requires_grad = False
         for p in G.parameters():
             p.requires_grad = True
-            
+        # TODO
         for iters in range(args.g_iter):
             G.zero_grad()
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
@@ -241,12 +255,16 @@ def main():
                 fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=None)
                 y_fake_g = D(fake_images, fake_images_small, crop_idx)
                 '''
+                # fixme
                 with torch.no_grad():
-                    fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
-                # print(f"Active G + fake crf: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
+                    xx = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
                 fake_images = G(noise, crop_idx=crop_idx, class_label=None)
-                # print(f"Active G ++: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
-                y_fake_g = D(fake_images, crop_idx, fake_img_for_crf)
+                xx[:, :, crop_idx:crop_idx + args.img_size // 8, :, :] = fake_images
+                embeds, labels_embedds = D.module.embeddings_of_whole_image(xx)
+                fake_detection_crf = crf(embeds, labels_embedds)
+                fake_detection_d = D(fake_images, crop_idx)
+                # fixme for checking crf it is in this way, later  change to summation
+                y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
                 '''
@@ -283,6 +301,32 @@ def main():
         e_loss = loss_mse(x_hat, real_images_crop)
         e_loss.backward()
         e_optimizer.step()
+        # print(f"Mem after E: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
+        # E.zero_grad()
+
+        ###############################################
+        # Train CRF
+        ###############################################
+        for p in E.parameters():
+            p.requires_grad = False
+        for p in crf.parameters():
+            p.requires_grad = True
+        crf.zero_grad()
+
+        # generate fake images in its entire size
+        noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
+        fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
+        embeds, labels_embedds = D.module.embeddings_of_whole_image(real_images)
+        y_real_crf = crf(embeds, labels_embedds)
+        embedsf, labels_embeddsf = D.module.embeddings_of_whole_image(fake_img_for_crf)
+        y_fake_crf = crf(embedsf, labels_embeddsf)
+
+        crf_fake_loss = loss_f(y_fake_crf, fake_labels)
+        crf_real_loss = loss_f(y_real_crf, real_labels)
+        # print(crf_fake_loss, crf_real_loss, "crf fake , real loss")
+        crf_loss = crf_real_loss + crf_fake_loss
+        crf_loss.backward()
+        crf_optimizer.step()
         # print(f"Mem after E: {torch.cuda.memory_allocated() / (1024 * 1024 * 1024)}")
         # E.zero_grad()
         ###############################################
@@ -325,7 +369,7 @@ def main():
             summary_writer.add_scalar('D_fake', d_fake_loss.item(), iteration)
             summary_writer.add_scalar('G_fake', g_loss.item(), iteration)
             summary_writer.add_scalar('E', e_loss.item(), iteration)
-            # summary_writer.add_scalar('Sub_E', sub_e_loss.item(), iteration)
+            summary_writer.add_scalar('CRF', crf_loss.item(), iteration)
 
         ###############################################
         # Visualization with Tensorboard
@@ -333,11 +377,11 @@ def main():
 # ?????????????????????????????????????????????????????????????????????????????????????? I changed
         # if iteration%200 ==0:
         if iteration % 10 == 0:
-            print('[{}/{}]'.format(iteration,args.num_iter),
+            print('[{}/{}]'.format(iteration, args.num_iter),
                   'D_real: {:<8.3}'.format(d_real_loss.item()),
                   'D_fake: {:<8.3}'.format(d_fake_loss.item()), 
                   'G_fake: {:<8.3}'.format(g_loss.item()),
-                   # 'Sub_E: {:<8.3}'.format(sub_e_loss.item()),
+                  'CRF: {:<8.3}'.format(crf_loss.item()),
                   'E: {:<8.3}'.format(e_loss.item()))
 
             featmask = np.squeeze((0.5*real_images_crop[0]+0.5).data.cpu().numpy())
@@ -366,6 +410,7 @@ def main():
                 # Get the current memory usage
                 if torch.cuda.is_available():
                     memory_usage = torch.cuda.memory_allocated() / 1024**3  # convert bytes to GB
+                    print(torch.cuda.max_memory_allocated() / 1024**3, torch.cuda.max_memory_reserved()/1024**3)
                 else:
                     memory_usage = torch.cuda.memory_allocated() / 1024**3 + \
                                    torch.cuda.memory_reserved() / 1024**3
@@ -376,7 +421,6 @@ def main():
                 )
                 summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
             # end of my code
-#########################################################I changed
         # if iteration > 30000 and (iteration+1)%500 == 0:
         if iteration % 99 == 0:
             print(iteration)

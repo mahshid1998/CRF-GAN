@@ -8,51 +8,6 @@ from models.layers import SNConv3d, SNLinear
 
 import sys
 import gc
-'''
-No usage where found
-class Code_Discriminator(nn.Module):
-    def __init__(self, code_size, num_units=256):
-        super(Code_Discriminator, self).__init__()
-
-        self.l1 = nn.Sequential(SNLinear(code_size, num_units),
-                                nn.LeakyReLU(0.2,inplace=True))
-        self.l2 = nn.Sequential(SNLinear(num_units, num_units),
-                                nn.LeakyReLU(0.2,inplace=True))
-        self.l3 = SNLinear(num_units, 1)
-
-    def forward(self, x):
-        x = self.l1(x)
-        x = self.l2(x)
-        x = self.l3(x)
-
-        return x
-'''
-
-'''
-This is E_G
-class Sub_Encoder(nn.Module):
-    def __init__(self, channel=256, latent_dim=1024):
-        super(Sub_Encoder, self).__init__()
-
-        self.relu = nn.ReLU()
-        self.conv2 = nn.Conv3d(channel//4, channel//4, kernel_size=4, stride=2, padding=1) # out:[16,16,16]
-        self.bn2 = nn.GroupNorm(8, channel//4)
-        self.conv3 = nn.Conv3d(channel//4, channel//2, kernel_size=4, stride=2, padding=1) # out:[8,8,8]
-        self.bn3 = nn.GroupNorm(8, channel//2)
-        self.conv4 = nn.Conv3d(channel//2, channel, kernel_size=4, stride=2, padding=1) # out:[4,4,4]
-        self.bn4 = nn.GroupNorm(8, channel)
-        self.conv5 = nn.Conv3d(channel, latent_dim, kernel_size=4, stride=1, padding=0) # out:[1,1,1,1]
-
-    def forward(self, h):
-        h = self.conv2(h)
-        h = self.relu(self.bn2(h))
-        h = self.conv3(h)
-        h = self.relu(self.bn3(h))
-        h = self.conv4(h)
-        h = self.relu(self.bn4(h))
-        h = self.conv5(h).squeeze()
-        return h
-'''
 
 
 class Encoder(nn.Module):
@@ -77,32 +32,6 @@ class Encoder(nn.Module):
         h = self.conv3(h)
         h = self.relu(self.bn3(h))
         return h
-
-
-'''
-This is D_L
-class Sub_Discriminator(nn.Module):
-    def __init__(self, num_class=0, channel=256):
-        super(Sub_Discriminator, self).__init__()
-        self.channel = channel
-        self.num_class = num_class
-
-        self.conv2 = SNConv3d(1, channel//4, kernel_size=4, stride=2, padding=1) # out:[16,16,16]
-        self.conv3 = SNConv3d(channel//4, channel//2, kernel_size=4, stride=2, padding=1) # out:[8,8,8]
-        self.conv4 = SNConv3d(channel//2, channel, kernel_size=4, stride=2, padding=1) # out:[4,4,4]
-        self.conv5 = SNConv3d(channel, 1+num_class, kernel_size=4, stride=1, padding=0) # out:[1,1,1,1]
-
-    def forward(self, h):
-        h = F.leaky_relu(self.conv2(h), negative_slope=0.2)
-        h = F.leaky_relu(self.conv3(h), negative_slope=0.2)
-        h = F.leaky_relu(self.conv4(h), negative_slope=0.2)
-        if self.num_class == 0:
-            h = self.conv5(h).view((-1,1))
-            return h
-        else:
-            h = self.conv5(h).view((-1,1+self.num_class))
-            return h[:,:1], h[:,1:]
-'''
 
 
 class CRF(nn.Module):
