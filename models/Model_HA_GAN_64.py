@@ -96,7 +96,6 @@ class Discriminator(nn.Module):
         self.fc2 = SNLinear(channel // 8, 1)
         if num_class > 0:
             self.fc2_class = SNLinear(channel // 8, num_class)
-        # self.crf = CRF(num_nodes=64, iteration=10)
 
     def forward(self, h, crop_idx):
         input_img = h.clone()
@@ -111,62 +110,10 @@ class Discriminator(nn.Module):
         h_logit = self.fc2(h)
         if self.num_class > 0:
             h_class_logit = self.fc2_class(h)
-            # h_small_logit, h_small_class_logit = self.sub_D(h_small)
-            # return (h_logit+ h_small_logit)/2., (h_class_logit+ h_small_class_logit)/2.
             return h_logit, h_class_logit
         else:
-            # h_small_logit = self.sub_D(h_small)
-            # return (h_logit+ h_small_logit)/2.
-            # return h_logit
-            # print(h_logit.shape, input_img.shape)
-            # exit(10)
-            # h_crf_logit = self.crf(input_img, h_logit, crop_idx)
-            # return (h_logit + h_crf_logit)/2. FIXME
             return h_logit
 
-    def embeddings_of_whole_image(self, whole_images, window_size=8):
-        # TODO
-    # with torch.no_grad():
-        h_whole = whole_images
-        embedings = []
-        labels = []
-        for j in range(h_whole.shape[2] - window_size + 1):
-            h = h_whole[:, :, j:j + window_size, :, :]
-            # h = F.leaky_relu(self.conv2(h), negative_slope=0.2)
-            # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
-            h = F.leaky_relu(self.conv3(h), negative_slope=0.2)
-            # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
-
-            h = F.leaky_relu(self.conv4(h), negative_slope=0.2)
-            # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
-
-            h = F.leaky_relu(self.conv5(h), negative_slope=0.2)
-            # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
-
-            h = F.leaky_relu(self.conv6(h), negative_slope=0.2)
-            # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
-
-            h = F.leaky_relu(self.conv7(h), negative_slope=0.2).squeeze()
-            # print(f"layer output shape{h.shape}, Mem allocated: {torch.cuda.memory_allocated() / (1024 * 1024)}")
-            embedings.append(h)
-            # print(j, "-------------------------------------------------------------------------------")
-            # print(f" embedding size: {sys.getsizeof(embedings)/(1024*1024)}, Mem allocated: {torch.cuda.memory_allocated()/(1024*1024)}, "
-            #      f"need of h:{(h.element_size() * h.nelement())/(1024*1024)}")
-            h = torch.cat([h, (j / 56. * torch.ones((h.size(0), 1))).cuda()], 1)  # 64*7/8
-            h = F.leaky_relu(self.fc1(h), negative_slope=0.2)
-            h_logit = self.fc2(h)
-            labels.append(h_logit)
-            # del h
-            # del h_logit
-
-        full_embeddings = torch.stack(embedings, dim=1)
-        all_labels = torch.stack(labels, dim=1)
-        # print(full_embeddings.shape, all_labels.shape)
-        del h
-        del h_logit
-        # print(full_embeddings.shape, "this is embeddings of all images", all_labels.shape, "labels shape")
-        # exit(10)
-        return full_embeddings, all_labels
 
 class Generator(nn.Module):
     def __init__(self, mode="train", latent_dim=1024, channel=32, num_class=0):
@@ -220,21 +167,12 @@ class Generator(nn.Module):
             h = self.relu(self.bn4(h))
 
             h = self.tp_conv5(h)
-            h_latent = self.relu(self.bn5(h))  # (16, 16, 16), channel:128
+            h_latent = self.relu(self.bn5(h))  # (16, 16, 16), channel:64
             if self.mode == "train":
                 # h_small = self.sub_G(h_latent)
                 h = h_latent[:, :, crop_idx // 4:crop_idx // 4 + 2, :, :]  # Crop sub-volume, out: (2, 16, 16)
             else:
                 h = h_latent
-            if crf_need:
-                h = F.interpolate(h_latent, scale_factor=2)
-                h = self.tp_conv6(h)
-                h = self.relu(self.bn6(h))  # (32, 32, 32)
-
-                h = F.interpolate(h, scale_factor=2)
-                h = self.tp_conv7(h)
-                h = torch.tanh(h)  # (64,64,64)
-                return h
         # Generate from latent feature
 
         h = F.interpolate(h, scale_factor=2)
@@ -244,6 +182,6 @@ class Generator(nn.Module):
         h = F.interpolate(h, scale_factor=2)
         h = self.tp_conv7(h)
         h = torch.tanh(h)  # (64,64,64)
-        # if crop_idx != None and self.mode == "train":
-        # return h, h_small
+        if crf_need:
+            return h, h_latent
         return h
