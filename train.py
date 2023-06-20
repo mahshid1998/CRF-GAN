@@ -162,7 +162,7 @@ def main():
         ###############################################
         for p in D.parameters():  
             p.requires_grad = True
-        for p in crf.parameters():
+        for p in E.parameters():
             p.requires_grad = False
 
         # loading image, cropping, down sampling
@@ -239,12 +239,46 @@ def main():
 
             g_loss.backward()
             g_optimizer.step()
+
+            ###############################################
+            # Train CRF
+            ###############################################
+            # todo
+
+            for p in G.parameters():
+                p.requires_grad = False
+            for p in crf.parameters():
+                p.requires_grad = True
+            crf.zero_grad()
+
+            # generate fake images latent dim from G^A
+            noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
+            fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
+            if torch.isnan(A_inter).any() or torch.isinf(A_inter).any():
+                print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
+                exit(10)
+            logits_fake = D(fake_images, crop_idx)
+            y_fake_crf = crf(A_inter, logits_fake)
+            # print(crop_idx, "----------------------------------------")
+            # generate real images latent dim from E^H
+            A_real_inter = E(real_images)
+            logits_real = D(real_images_crop, crop_idx)
+            y_real_crf = crf(A_real_inter, logits_real)
+
+            crf_fake_loss = loss_f(y_fake_crf, fake_labels)
+            crf_real_loss = loss_f(y_real_crf, real_labels)
+            # print(crf_fake_loss, crf_real_loss, "crf fake , real loss")
+            crf_loss = crf_real_loss + crf_fake_loss
+            crf_loss.backward()
+            crf_optimizer.step()
+
+
         ###############################################
         # Train Encoder (E^H)
         ###############################################
         for p in E.parameters():
             p.requires_grad = True
-        for p in G.parameters():
+        for p in crf.parameters():
             p.requires_grad = False
         E.zero_grad()
         
@@ -254,38 +288,6 @@ def main():
         e_loss = loss_mse(x_hat, real_images_crop)
         e_loss.backward()
         e_optimizer.step()
-        ###############################################
-        # Train CRF
-        ###############################################
-        # todo
-
-        for p in E.parameters():
-            p.requires_grad = False
-        for p in crf.parameters():
-            p.requires_grad = True
-        crf.zero_grad()
-
-        # generate fake images latent dim from G^A
-        noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
-        fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
-        if torch.isnan(A_inter).any() > 0 or torch.isnan(A_inter).any() > 0:
-            print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
-            exit(10)
-        logits_fake = D(fake_images, crop_idx)
-        y_fake_crf = crf(A_inter, logits_fake)
-        # print(crop_idx, "----------------------------------------")
-        # generate real images latent dim from E^H
-        A_real_inter = E(real_images)
-        logits_real = D(real_images_crop, crop_idx)
-        y_real_crf = crf(A_real_inter, logits_real)
-
-        crf_fake_loss = loss_f(y_fake_crf, fake_labels)
-        crf_real_loss = loss_f(y_real_crf, real_labels)
-        # print(crf_fake_loss, crf_real_loss, "crf fake , real loss")
-        crf_loss = crf_real_loss + crf_fake_loss
-        crf_loss.backward()
-        crf_optimizer.step()
-
         # Logging
         if iteration % args.log_iter == 0:
             summary_writer.add_scalar('D', d_loss.item(), iteration)
@@ -300,7 +302,7 @@ def main():
         ################################################
 # ?????????????????????????????????????????????????????????????????????????????????????? I changed
         # if iteration%200 ==0:
-        if iteration % 30 == 0:
+        if iteration % 10 == 0:
             print('[{}/{}]'.format(iteration, args.num_iter),
                   'D_real: {:<8.3}'.format(d_real_loss.item()),
                   'D_fake: {:<8.3}'.format(d_fake_loss.item()), 
@@ -352,7 +354,7 @@ def main():
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
             torch.save({'model':E.state_dict(), 'optimizer':e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/E_iter'+str(iteration+1)+'.pth')
-            # torch.save({'model':Sub_E.state_dict(), 'optimizer':sub_e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/Sub_E_iter'+str(iteration+1)+'.pth')
+            torch.save({'model':crf.state_dict(), 'optimizer':crf_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/crf_iter'+str(iteration+1)+'.pth')
 
 
 if __name__ == '__main__':
