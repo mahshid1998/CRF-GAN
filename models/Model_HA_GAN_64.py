@@ -41,7 +41,7 @@ class CRF(nn.Module):
         self.iteration = iteration
         self.W = nn.Parameter(torch.zeros(1, num_nodes, num_nodes))
 
-    def forward(self, a_inter):
+    def forward(self, a_inter, logits):
         '''
         logits > 0 means tumor and logits < 0 means normal.
         if probs -> 1, then pairwise_potential promotes tumor probability;
@@ -63,8 +63,9 @@ class CRF(nn.Module):
         batch_size, channels, _, height, width = a_inter.shape
         # Reshape tensor A to B
         feats = a_inter[:, :, :self.num_nodes, :, :].reshape(batch_size, self.num_nodes, -1)
-        # print(feats.shape, a_inter.shape)
-        # exit(10)
+        if torch.isnan(a_inter).any() > 0 or torch.isnan(a_inter).any() > 0:
+            print("feats has Nan or INF===================================================================")
+        logits = logits.unsqueeze(1).expand(-1, self.num_nodes, -1)
         feats_norm = torch.norm(feats, p=2, dim=2, keepdim=True)
         pairwise_norm = torch.bmm(feats_norm, torch.transpose(feats_norm, 1, 2))
         pairwise_dot = torch.bmm(feats, torch.transpose(feats, 1, 2))
@@ -75,17 +76,17 @@ class CRF(nn.Module):
         pairwise_potential = pairwise_sim * W_sym
         # print(pairwise_potential)
         # print(pairwise_potential)
-        # unary_potential = logits.clone()
-        unary_potential = torch.randn([batch_size, self.num_nodes, 1]).cuda()
+        unary_potential = logits.clone()
+        # unary_potential = torch.randn([batch_size, self.num_nodes, 1]).cuda()
         for i in range(self.iteration):
             # current Q after normalizing the logits
-            probs = torch.transpose(unary_potential.sigmoid(), 1, 2)
+            probs = torch.transpose(logits.sigmoid(), 1, 2)
             # taking expectation of pairwise_potential using current Q
             pairwise_potential_E = torch.sum(probs * pairwise_potential - (1 - probs) * pairwise_potential, dim=2, keepdim=True)
             # logits = unary_potential + pairwise_potential_E
             # print(pairwise_potential_E)
-            unary_potential += pairwise_potential_E
-        return unary_potential.mean(dim=1)
+            logits = unary_potential + pairwise_potential_E
+        return logits.mean(dim=1)
 
 
 class Discriminator(nn.Module):
@@ -151,7 +152,7 @@ class Generator(nn.Module):
         self.bn6 = nn.GroupNorm(8, _c)
         self.tp_conv7 = nn.Conv3d(_c, 1, kernel_size=3, stride=1, padding=1, bias=True)
 
-    def forward(self, h, crop_idx=None, class_label=None, crf_need=False, crf_train=False):
+    def forward(self, h, crop_idx=None, class_label=None, crf_need=False):
         # Generate from random noise
         if crop_idx != None or self.mode == 'eval':
             if self.num_class > 0:
@@ -176,8 +177,6 @@ class Generator(nn.Module):
 
             h = self.tp_conv5(h)
             h_latent = self.relu(self.bn5(h))  # (16, 16, 16), channel:64
-            if crf_train:
-                return h_latent
             if self.mode == "train":
                 # h_small = self.sub_G(h_latent)
                 h = h_latent[:, :, crop_idx // 4:crop_idx // 4 + 2, :, :]  # Crop sub-volume, out: (2, 16, 16)

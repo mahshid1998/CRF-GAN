@@ -156,7 +156,7 @@ def main():
         p.requires_grad = False
 
     for iteration in range(args.continue_iter, args.num_iter):
-        # print("iteration :", iteration)
+        print("iteration :", iteration)
         ###############################################
         # Train Discriminator (D^H)
         ###############################################
@@ -222,7 +222,7 @@ def main():
             if args.num_class == 0:  # unconditional
                 fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
                 fake_detection_d = D(fake_images, crop_idx)
-                fake_detection_crf = crf(A_inter)
+                fake_detection_crf = crf(A_inter, fake_detection_d)
                 y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
@@ -258,6 +258,7 @@ def main():
         # Train CRF
         ###############################################
         # todo
+
         for p in E.parameters():
             p.requires_grad = False
         for p in crf.parameters():
@@ -266,12 +267,17 @@ def main():
 
         # generate fake images latent dim from G^A
         noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
-        A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_train=True)
-        y_fake_crf = crf(A_inter)
-
+        fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
+        if torch.isnan(A_inter).any() > 0 or torch.isnan(A_inter).any() > 0:
+            print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
+            exit(10)
+        logits_fake = D(fake_images, crop_idx)
+        y_fake_crf = crf(A_inter, logits_fake)
+        # print(crop_idx, "----------------------------------------")
         # generate real images latent dim from E^H
         A_real_inter = E(real_images)
-        y_real_crf = crf(A_real_inter)
+        logits_real = D(real_images_crop, crop_idx)
+        y_real_crf = crf(A_real_inter, logits_real)
 
         crf_fake_loss = loss_f(y_fake_crf, fake_labels)
         crf_real_loss = loss_f(y_real_crf, real_labels)
@@ -294,7 +300,7 @@ def main():
         ################################################
 # ?????????????????????????????????????????????????????????????????????????????????????? I changed
         # if iteration%200 ==0:
-        if iteration % 10 == 0:
+        if iteration % 30 == 0:
             print('[{}/{}]'.format(iteration, args.num_iter),
                   'D_real: {:<8.3}'.format(d_real_loss.item()),
                   'D_fake: {:<8.3}'.format(d_fake_loss.item()), 
@@ -341,7 +347,7 @@ def main():
                 summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
             # end of my code
         # if iteration > 30000 and (iteration+1)%500 == 0:
-        if iteration % 99 == 0:
+        if iteration % 100 == 0:
             print(iteration)
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
