@@ -47,8 +47,8 @@ class CRF(nn.Module):
         self.iteration = iteration
         self.W = nn.Parameter(torch.zeros(1, num_nodes, num_nodes))
 
-    def forward(self, feats, logits):
-        '''
+    def forward(self, a_inter, logits):
+        """
         logits > 0 means tumor and logits < 0 means normal.
         if probs -> 1, then pairwise_potential promotes tumor probability;
         if probs -> 0, then -pairwise_potential promotes normal probability.
@@ -65,8 +65,11 @@ class CRF(nn.Module):
         Returns:
             logits: 3D tensor with shape of [batch_size, num_nodes, 1], the
             logit of each patch within the grid being tumor after CRF
-        '''
-        # print(f"last embeddings {feats.shape}, logit size which should be [4, 112, 1]{logits.shape}")
+        """
+        batch_size, channels, _, height, width = a_inter.shape
+        # Reshape tensor A to feats
+        feats = a_inter[:, :, :self.num_nodes, :, :].reshape(batch_size, self.num_nodes, -1)
+        logits = logits.unsqueeze(1).expand(-1, self.num_nodes, -1)
         feats_norm = torch.norm(feats, p=2, dim=2, keepdim=True)
         pairwise_norm = torch.bmm(feats_norm, torch.transpose(feats_norm, 1, 2))
         pairwise_dot = torch.bmm(feats, torch.transpose(feats, 1, 2))
@@ -82,7 +85,7 @@ class CRF(nn.Module):
             # taking expectation of pairwise_potential using current Q
             pairwise_potential_E = torch.sum(probs * pairwise_potential - (1 - probs) * pairwise_potential, dim=2, keepdim=True)
             logits = unary_potential + pairwise_potential_E
-        return logits
+        return logits.mean(dim=1)
 
 
 class Discriminator(nn.Module):
@@ -106,72 +109,21 @@ class Discriminator(nn.Module):
         if num_class > 0:
             self.fc2_class = SNLinear(channel // 8, num_class)
 
-        # D^L
-
-    #    self.sub_D = Sub_Discriminator(num_class)
-        # CRF
-        self.crf = CRF(num_nodes=113, iteration=10)
-
-    # def forward(self, h, h_small, crop_idx):
     def forward(self, h, crop_idx):
-        # print(f"layer output shape{h.shape}")
         h = F.leaky_relu(self.conv2(h), negative_slope=0.2)
         h = F.leaky_relu(self.conv3(h), negative_slope=0.2)
         h = F.leaky_relu(self.conv4(h), negative_slope=0.2)
         h = F.leaky_relu(self.conv5(h), negative_slope=0.2)
         h = F.leaky_relu(self.conv6(h), negative_slope=0.2)
         h = F.leaky_relu(self.conv7(h), negative_slope=0.2).squeeze()
-        # print(h.shape, crop_idx)
         h = torch.cat([h, (crop_idx / 112. * torch.ones((h.size(0), 1))).cuda()], 1)  # 128*7/8
-        # print(h.shape, h[1,128]*112)
-        # exit(10)
         h = F.leaky_relu(self.fc1(h), negative_slope=0.2)
         h_logit = self.fc2(h)
         if self.num_class > 0:
             h_class_logit = self.fc2_class(h)
-
-            # h_small_logit, h_small_class_logit = self.sub_D(h_small)
-            # return (h_logit+ h_small_logit)/2., (h_class_logit+ h_small_class_logit)/2.
             return h_logit, h_class_logit
         else:
-            # h_small_logit = self.sub_D(h_small)
-            # return (h_logit+ h_small_logit)/2.
-            # crf_embedds, labels_embedds = self.embeddings_of_whole_image(whole_images)
-            #return h_logit
-            # h_crf_logit = self.crf(crf_embedds, labels_embedds)
-
-            #print(f" shape of crf output is: {h_crf_logit.shape},\nlogits of D: {h_logit},\nlogits of crf:{h_crf_logit[:,:,:]}")
-            #exit(10)
             return h_logit
-
-'''
-This is G_L
-class Sub_Generator(nn.Module):
-    def __init__(self, channel:int=16):
-        super(Sub_Generator, self).__init__()
-        _c = channel
-
-        self.relu = nn.ReLU()
-        self.tp_conv1 = nn.Conv3d(_c*4, _c*2, kernel_size=3, stride=1, padding=1, bias=True)
-        self.bn1 = nn.GroupNorm(8, _c*2)
-
-        self.tp_conv2 = nn.Conv3d(_c*2, _c, kernel_size=3, stride=1, padding=1, bias=True)
-        self.bn2 = nn.GroupNorm(8, _c)
-
-        self.tp_conv3 = nn.Conv3d(_c, 1, kernel_size=3, stride=1, padding=1, bias=True)
-
-    def forward(self, h):
-
-        h = self.tp_conv1(h)
-        h = self.relu(self.bn1(h))
-
-        h = self.tp_conv2(h)
-        h = self.relu(self.bn2(h))
-
-        h = self.tp_conv3(h)
-        h = torch.tanh(h)
-        return h
-'''
 
 
 class Generator(nn.Module):
@@ -206,11 +158,7 @@ class Generator(nn.Module):
 
         self.tp_conv7 = nn.Conv3d(_c, 1, kernel_size=3, stride=1, padding=1, bias=True)
 
-        # G^L
-        # self.sub_G = Sub_Generator(channel=_c//2)
-
     def forward(self, h, crop_idx=None, class_label=None, crf_need=False):
-
         # Generate from random noise
         if crop_idx != None or self.mode == 'eval':
             if self.num_class > 0:
@@ -249,10 +197,8 @@ class Generator(nn.Module):
 
         h = F.interpolate(h, scale_factor=2)
         h = self.tp_conv7(h)
-
         h = torch.tanh(h)  # (128, 128, 128)
-        # if crop_idx != None and self.mode == "train":
-        # return h, h_small
+
         if crf_need:
             return h, h_latent
         return h

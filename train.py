@@ -2,8 +2,6 @@
 # train HA-GAN
 # Hierarchical Amortized GAN for 3D High Resolution Medical Image Synthesis
 # https://ieeexplore.ieee.org/abstract/document/9770375
-
-from tensorboard.plugins.histogram import summary as histogram_summary
 import numpy as np
 import torch
 import os
@@ -12,7 +10,6 @@ import argparse
 
 from torch import nn
 from torch import optim
-from torch.nn import functional as F
 from tensorboardX import SummaryWriter
 import nibabel as nib
 from nilearn import plotting
@@ -74,7 +71,8 @@ def main():
     gen_load = inf_train_gen(train_loader)
     
     if args.img_size == 256:
-        from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder
+        from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder, CRF
+        crf_num_nodes = 64
     elif args.img_size == 128:
         from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder, CRF
         crf_num_nodes = 32
@@ -88,7 +86,6 @@ def main():
     D = Discriminator(num_class=args.num_class).cuda()
     E = Encoder().cuda()
     crf = CRF(num_nodes=crf_num_nodes, iteration=10).cuda()
-    # Sub_E = Sub_Encoder(latent_dim=args.latent_dim).cuda()
 
     g_optimizer = optim.Adam(G.parameters(), lr=args.lr_g, betas=(0.0, 0.999), eps=1e-8)
     d_optimizer = optim.Adam(D.parameters(), lr=args.lr_d, betas=(0.0, 0.999), eps=1e-8)
@@ -148,13 +145,21 @@ def main():
 
     for p in D.parameters():  
         p.requires_grad = False
-    for p in G.parameters():  
+    for p in G.parameters():
         p.requires_grad = False
     for p in E.parameters():  
         p.requires_grad = False
     for p in crf.parameters():
         p.requires_grad = False
 
+    """
+    d_param = sum(p.numel() for p in D.parameters())
+    g_param = sum(p.numel() for p in G.parameters())
+    e_param = sum(p.numel() for p in E.parameters())
+    crf_param = sum(p.numel() for p in crf.parameters())
+    print(d_param/10**6, g_param/10**6, e_param/10**6, crf_param/10**6, (d_param + g_param + e_param + crf_param)/10**6)
+    exit(10)
+    """
     for iteration in range(args.continue_iter, args.num_iter):
         print("iteration :", iteration)
         ###############################################
@@ -169,8 +174,6 @@ def main():
         real_images, class_label = gen_load.__next__()
         D.zero_grad()
         real_images = real_images.float().cuda()
-        # low-res full volume of real image
-        # real_images_small = F.interpolate(real_images, scale_factor = 0.25)
         # randomly select a high-res sub-volume from real image
         crop_idx = np.random.randint(0, args.img_size*7/8+1)  # 256 * 7/8 + 1
         real_images_crop = real_images[:, :, crop_idx:crop_idx+args.img_size//8, :, :]
@@ -243,8 +246,6 @@ def main():
             ###############################################
             # Train CRF
             ###############################################
-            # todo
-
             for p in G.parameters():
                 p.requires_grad = False
             for p in crf.parameters():
@@ -254,20 +255,18 @@ def main():
             # generate fake images latent dim from G^A
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
             fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
-            if torch.isnan(A_inter).any() or torch.isinf(A_inter).any():
-                print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
-                exit(10)
+            # if torch.isnan(A_inter).any() or torch.isinf(A_inter).any():
+            #    print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
             logits_fake = D(fake_images, crop_idx)
             y_fake_crf = crf(A_inter, logits_fake)
-            # print(crop_idx, "----------------------------------------")
+            crf_fake_loss = loss_f(y_fake_crf, fake_labels)
+
             # generate real images latent dim from E^H
             A_real_inter = E(real_images)
             logits_real = D(real_images_crop, crop_idx)
             y_real_crf = crf(A_real_inter, logits_real)
-
-            crf_fake_loss = loss_f(y_fake_crf, fake_labels)
             crf_real_loss = loss_f(y_real_crf, real_labels)
-            # print(crf_fake_loss, crf_real_loss, "crf fake , real loss")
+
             crf_loss = crf_real_loss + crf_fake_loss
             crf_loss.backward()
             crf_optimizer.step()
@@ -316,14 +315,6 @@ def main():
             plotting.plot_img(featmask,title="REAL",cut_coords=(args.img_size//2,args.img_size//2,args.img_size//16),figure=fig,draw_cross=False,cmap="gray")
             summary_writer.add_figure('Real', fig, iteration, close=True)
 
-            ''' sub_x_hat is output of Encoder of Low res path
-            featmask = np.squeeze((0.5*sub_x_hat_rec[0]+0.5).data.cpu().numpy())
-            featmask = nib.Nifti1Image(featmask.transpose((2,1,0)),affine = np.eye(4))
-            fig = plt.figure()
-            plotting.plot_img(featmask, title="REC", cut_coords=(args.img_size//2, args.img_size//2, args.img_size//16), figure=fig, draw_cross=False, cmap="gray")
-            summary_writer.add_figure('Rec', fig, iteration, close=True)
-            '''
-
             featmask = np.squeeze((0.5*fake_images[0]+0.5).data.cpu().numpy())
             featmask = nib.Nifti1Image(featmask.transpose((2,1,0)),affine = np.eye(4))
             fig = plt.figure()
@@ -331,23 +322,25 @@ def main():
             summary_writer.add_figure('Fake', fig, iteration, close=True)
 
 
-# ###################################################### my code to capture memory usage
-            with torch.autograd.profiler.profile(use_cuda=True) as prof:
-                # Get the current memory usage
-                if torch.cuda.is_available():
-                    memory_usage = torch.cuda.memory_allocated() / 1024**3  # convert bytes to GB
-                    # print(torch.cuda.max_memory_allocated() / 1024**3, torch.cuda.max_memory_reserved()/1024**3,
-                    #      torch.cuda.memory_allocated() / 1024**3)
-                else:
-                    memory_usage = torch.cuda.memory_allocated() / 1024**3 + \
+# ###################################################### my code to capture# with torch.autograd.profiler.profile(use_cuda=True) as prof:
+            # todo
+            """
+            # Get the current memory usage
+            if torch.cuda.is_available():
+                memory_usage = torch.cuda.memory_allocated() / 1024**3  # convert bytes to GB
+                print(torch.cuda.max_memory_allocated() / 1024**3, torch.cuda.max_memory_reserved()/1024**3,
+                          torch.cuda.memory_allocated() / 1024**3)
+            else:
+                memory_usage = torch.cuda.memory_allocated() / 1024**3 + \
                                    torch.cuda.memory_reserved() / 1024**3
                 # Create a histogram summary to log memory usage
-                summary = histogram_summary.histogram_pb(
-                    "memory_usage",
-                    memory_usage,
-                )
-                summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
+            # summary = histogram_summary.histogram_pb("memory_usage", memory_usage,)
+            summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
+
+                # prof.key_annotate(str(iteration))
+                # prof.export_chrome_trace("profile_results.json")
             # end of my code
+        """
         # if iteration > 30000 and (iteration+1)%500 == 0:
         if iteration % 100 == 0:
             print(iteration)
