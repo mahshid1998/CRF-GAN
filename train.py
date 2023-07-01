@@ -122,11 +122,11 @@ def main():
         del ckpt
         print("Ckpt", args.exp_name, args.continue_iter, "loaded.")
 
+
     G = nn.DataParallel(G)
     D = nn.DataParallel(D)
     E = nn.DataParallel(E)
     crf = nn.DataParallel(crf)
-
     G.train()
     D.train()
     E.train()
@@ -162,6 +162,7 @@ def main():
     """
     for iteration in range(args.continue_iter, args.num_iter):
         print("iteration :", iteration)
+
         ###############################################
         # Train Discriminator (D^H)
         ###############################################
@@ -177,7 +178,6 @@ def main():
         # randomly select a high-res sub-volume from real image
         crop_idx = np.random.randint(0, args.img_size*7/8+1)  # 256 * 7/8 + 1
         real_images_crop = real_images[:, :, crop_idx:crop_idx+args.img_size//8, :, :]
-
         if args.num_class == 0:  # unconditional
             # for real images
             y_real_pred = D(real_images_crop, crop_idx)
@@ -242,7 +242,6 @@ def main():
 
             g_loss.backward()
             g_optimizer.step()
-
             ###############################################
             # Train CRF
             ###############################################
@@ -271,7 +270,6 @@ def main():
             crf_loss.backward()
             crf_optimizer.step()
 
-
         ###############################################
         # Train Encoder (E^H)
         ###############################################
@@ -295,7 +293,7 @@ def main():
             summary_writer.add_scalar('G_fake', g_loss.item(), iteration)
             summary_writer.add_scalar('E', e_loss.item(), iteration)
             summary_writer.add_scalar('CRF', crf_loss.item(), iteration)
-
+        print(torch.cuda.memory_summary())
         ###############################################
         # Visualization with Tensorboard
         ################################################
