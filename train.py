@@ -170,7 +170,6 @@ def main():
             p.requires_grad = True
         for p in E.parameters():
             p.requires_grad = False
-
         # loading image, cropping, down sampling
         real_images, class_label = gen_load.__next__()
         D.zero_grad()
