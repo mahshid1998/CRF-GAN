@@ -296,9 +296,8 @@ def main():
         ###############################################
         # Visualization with Tensorboard
         ################################################
-# ?????????????????????????????????????????????????????????????????????????????????????? I changed
-        # if iteration%200 ==0:
-        if iteration % 10 == 0:
+        if iteration%200 ==0:
+        # if iteration % 10 == 0:
             print('[{}/{}]'.format(iteration, args.num_iter),
                   'D_real: {:<8.3}'.format(d_real_loss.item()),
                   'D_fake: {:<8.3}'.format(d_fake_loss.item()), 
@@ -321,26 +320,14 @@ def main():
 
 # ###################################################### my code to capture# with torch.autograd.profiler.profile(use_cuda=True) as prof:
             # todo
-            """
             # Get the current memory usage
             if torch.cuda.is_available():
-                memory_usage = torch.cuda.memory_allocated() / 1024**3  # convert bytes to GB
-                print(torch.cuda.max_memory_allocated() / 1024**3, torch.cuda.max_memory_reserved()/1024**3,
-                          torch.cuda.memory_allocated() / 1024**3)
+                memory_usage = torch.cuda.max_memory_allocated() / 1024**3  # convert bytes to GB
             else:
                 memory_usage = torch.cuda.memory_allocated() / 1024**3 + \
                                    torch.cuda.memory_reserved() / 1024**3
-                # Create a histogram summary to log memory usage
-            # summary = histogram_summary.histogram_pb("memory_usage", memory_usage,)
             summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
-
-                # prof.key_annotate(str(iteration))
-                # prof.export_chrome_trace("profile_results.json")
-            # end of my code
-        """
-        # if iteration > 30000 and (iteration+1)%500 == 0:
-        if iteration % 100 == 0:
-            print(iteration)
+        if iteration > 10000 and (iteration+1)%500 == 0:
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
             torch.save({'model':E.state_dict(), 'optimizer':e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/E_iter'+str(iteration+1)+'.pth')
