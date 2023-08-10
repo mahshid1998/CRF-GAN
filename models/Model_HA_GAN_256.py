@@ -103,7 +103,7 @@ class Discriminator(nn.Module):
             self.fc2_class = SNLinear(channel//8, num_class)
 
 
-    def forward(self, h, h_small, crop_idx):
+    def forward(self, h, crop_idx):
         h = F.leaky_relu(self.conv1(h), negative_slope=0.2)
         h = F.leaky_relu(self.conv2(h), negative_slope=0.2)
         h = F.leaky_relu(self.conv3(h), negative_slope=0.2)
