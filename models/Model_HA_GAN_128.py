@@ -6,9 +6,6 @@ from torch import optim
 from torch.nn import functional as F
 from models.layers import SNConv3d, SNLinear
 
-import sys
-import gc
-
 
 class Encoder(nn.Module):
     def __init__(self, channel=64):
@@ -70,13 +67,36 @@ class CRF(nn.Module):
         # Reshape tensor A to feats
         feats = a_inter[:, :, :self.num_nodes, :, :].reshape(batch_size, self.num_nodes, -1)
         logits = logits.unsqueeze(1).expand(-1, self.num_nodes, -1)
+
         feats_norm = torch.norm(feats, p=2, dim=2, keepdim=True)
+        # print("feats", torch.isinf(feats).any().item(), torch.any(feats == 0).item())
+        # print("feats norm", torch.isinf(feats_norm).any().item(), torch.any(feats_norm == 0).item())
+        # if torch.isnan(feats_norm).any():
+        #    print("feats norm NAN")
+
         pairwise_norm = torch.bmm(feats_norm, torch.transpose(feats_norm, 1, 2))
+
+        # print("pairwise Norm", torch.isinf(pairwise_norm).any().item(), torch.any(pairwise_norm == 0).item())
+        # if torch.isnan(pairwise_norm).any():
+        #    print("pairwise norm NAN")
+
         pairwise_dot = torch.bmm(feats, torch.transpose(feats, 1, 2))
+        #print("dot ", torch.isinf(pairwise_dot).any().item(), torch.any(pairwise_dot == 0).item())
+        #if torch.isnan(pairwise_dot).any():
+        #    print("pairwise dot NAN")
+
+
         # cosine similarity between feats
-        pairwise_sim = pairwise_dot / pairwise_norm
+        pairwise_sim = pairwise_dot / (pairwise_norm + 1e-6)
+        # if torch.isnan(pairwise_sim).any():
+        #    print("pairwise sim NAN")
+        #    exit(10)
+
         # symmetric constraint for CRF weights
-        W_sym = (self.W + torch.transpose(self.W, 1, 2)) / 2
+        W_sym = (self.W + torch.transpose(self.W, 1, 2)) / 2.
+        # if torch.isnan(W_sym).any():
+        #    print("W_sym NAN")
+
         pairwise_potential = pairwise_sim * W_sym
         unary_potential = logits.clone()
         for i in range(self.iteration):
@@ -184,7 +204,6 @@ class Generator(nn.Module):
 
             h = self.tp_conv5(h)
             h_latent = self.relu(self.bn5(h))  # (32, 32, 32), channel:128
-            print("h inside train and crop mode", torch.isnan(h).any().item(), "h_latent", torch.isnan(h_latent).any().item())
 
             if self.mode == "train":
                 # h_small = self.sub_G(h_latent)
@@ -199,7 +218,6 @@ class Generator(nn.Module):
         h = F.interpolate(h, scale_factor=2)
         h = self.tp_conv7(h)
         h = torch.tanh(h)  # (128, 128, 128)
-        print("h, last layer", torch.isnan(h).any().item())
         if crf_need:
             return h, h_latent
         return h

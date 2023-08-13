@@ -228,6 +228,7 @@ def main():
                 fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
                 fake_detection_d = D(fake_images, crop_idx)
                 fake_detection_crf = crf(A_inter, fake_detection_d)
+                print(fake_detection_crf)
                 y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
@@ -253,10 +254,9 @@ def main():
             for p in crf.parameters():
                 p.requires_grad = True
             crf.zero_grad()
-
+            print("crf")
             # generate fake images latent dim from G^A
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
-            print("CRF", crop_idx)
             fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
             # if torch.isnan(A_inter).any() or torch.isinf(A_inter).any():
             #    print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
@@ -302,7 +302,7 @@ def main():
         ###############################################
         # Visualization with Tensorboard
         ################################################
-        if iteration%200 ==0:
+        if iteration%2 ==0:
         # if iteration % 10 == 0:
             print(iteration,"iter")
             print('[{}/{}]'.format(iteration, args.num_iter),

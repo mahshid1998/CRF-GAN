@@ -69,9 +69,9 @@ class CRF(nn.Module):
         pairwise_norm = torch.bmm(feats_norm, torch.transpose(feats_norm, 1, 2))
         pairwise_dot = torch.bmm(feats, torch.transpose(feats, 1, 2))
         # cosine similarity between feats
-        pairwise_sim = pairwise_dot / pairwise_norm
+        pairwise_sim = pairwise_dot / (pairwise_norm + 1e-6)
         # symmetric constraint for CRF weights
-        W_sym = (self.W + torch.transpose(self.W, 1, 2)) / 2
+        W_sym = (self.W + torch.transpose(self.W, 1, 2)) / 2.
         pairwise_potential = pairwise_sim * W_sym
         unary_potential = logits.clone()
         for i in range(self.iteration):
