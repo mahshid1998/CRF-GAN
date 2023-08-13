@@ -184,6 +184,7 @@ class Generator(nn.Module):
 
             h = self.tp_conv5(h)
             h_latent = self.relu(self.bn5(h))  # (32, 32, 32), channel:128
+            print("h inside train and crop mode", torch.isnan(h).any().item(), "h_latent", torch.isnan(h_latent).any().item())
 
             if self.mode == "train":
                 # h_small = self.sub_G(h_latent)
@@ -198,7 +199,7 @@ class Generator(nn.Module):
         h = F.interpolate(h, scale_factor=2)
         h = self.tp_conv7(h)
         h = torch.tanh(h)  # (128, 128, 128)
-
+        print("h, last layer", torch.isnan(h).any().item())
         if crf_need:
             return h, h_latent
         return h

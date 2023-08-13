@@ -173,6 +173,7 @@ def main():
         # loading image, cropping, down sampling
         real_images, class_label = gen_load.__next__()
         D.zero_grad()
+
         real_images = real_images.float().cuda()
         # randomly select a high-res sub-volume from real image
         crop_idx = np.random.randint(0, args.img_size*7/8+1)  # 256 * 7/8 + 1
@@ -211,6 +212,7 @@ def main():
         d_loss = d_real_loss + d_fake_loss
         d_loss.backward()
         d_optimizer.step()
+
         ###############################################
         # Train Generator (G^A, G^H and G^L(Not any more:)))
         ###############################################
@@ -219,6 +221,7 @@ def main():
         for p in G.parameters():
             p.requires_grad = True
         for iters in range(args.g_iter):
+            print("G")
             G.zero_grad()
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
             if args.num_class == 0:  # unconditional
@@ -241,6 +244,7 @@ def main():
 
             g_loss.backward()
             g_optimizer.step()
+
             ###############################################
             # Train CRF
             ###############################################
@@ -252,6 +256,7 @@ def main():
 
             # generate fake images latent dim from G^A
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
+            print("CRF", crop_idx)
             fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
             # if torch.isnan(A_inter).any() or torch.isinf(A_inter).any():
             #    print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
@@ -276,6 +281,7 @@ def main():
             p.requires_grad = True
         for p in crf.parameters():
             p.requires_grad = False
+        print("E")
         E.zero_grad()
         
         z_hat = E(real_images_crop)
@@ -292,12 +298,13 @@ def main():
             summary_writer.add_scalar('G_fake', g_loss.item(), iteration)
             summary_writer.add_scalar('E', e_loss.item(), iteration)
             summary_writer.add_scalar('CRF', crf_loss.item(), iteration)
-        print(torch.cuda.memory_summary())
+        # print(torch.cuda.memory_summary())
         ###############################################
         # Visualization with Tensorboard
         ################################################
         if iteration%200 ==0:
         # if iteration % 10 == 0:
+            print(iteration,"iter")
             print('[{}/{}]'.format(iteration, args.num_iter),
                   'D_real: {:<8.3}'.format(d_real_loss.item()),
                   'D_fake: {:<8.3}'.format(d_fake_loss.item()), 
