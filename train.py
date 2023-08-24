@@ -301,16 +301,16 @@ def main():
         ###############################################
         # Visualization with Tensorboard
         ################################################
-        if iteration%200 ==0:
-        # if iteration % 10 == 0:
-            print(iteration,"iter")
+        if iteration%20 ==0:
+            print(iteration, "iter")
             print('[{}/{}]'.format(iteration, args.num_iter),
                   'D_real: {:<8.3}'.format(d_real_loss.item()),
-                  'D_fake: {:<8.3}'.format(d_fake_loss.item()), 
+                  'D_fake: {:<8.3}'.format(d_fake_loss.item()),
                   'G_fake: {:<8.3}'.format(g_loss.item()),
                   'CRF: {:<8.3}'.format(crf_loss.item()),
                   'E: {:<8.3}'.format(e_loss.item()))
-
+        if iteration % 200 == 0:
+            print("saving", iteration)
             featmask = np.squeeze((0.5*real_images_crop[0]+0.5).data.cpu().numpy())
             featmask = nib.Nifti1Image(featmask.transpose((2, 1, 0)), affine=np.eye(4))
             fig = plt.figure()
