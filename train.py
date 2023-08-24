@@ -161,7 +161,7 @@ def main():
     exit(10)
     """
     for iteration in range(args.continue_iter, args.num_iter):
-        print("iteration :", iteration)
+        # print("iteration :", iteration)
 
         ###############################################
         # Train Discriminator (D^H)
@@ -221,7 +221,7 @@ def main():
         for p in G.parameters():
             p.requires_grad = True
         for iters in range(args.g_iter):
-            print("G")
+            # print("G")
             G.zero_grad()
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
             if args.num_class == 0:  # unconditional
@@ -246,33 +246,33 @@ def main():
             g_loss.backward()
             g_optimizer.step()
 
-            ###############################################
-            # Train CRF
-            ###############################################
-            for p in G.parameters():
-                p.requires_grad = False
-            for p in crf.parameters():
-                p.requires_grad = True
-            crf.zero_grad()
-            print("crf")
-            # generate fake images latent dim from G^A
-            noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
-            fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
-            # if torch.isnan(A_inter).any() or torch.isinf(A_inter).any():
-            #    print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
-            logits_fake = D(fake_images, crop_idx)
-            y_fake_crf = crf(A_inter, logits_fake)
-            crf_fake_loss = loss_f(y_fake_crf, fake_labels)
+        ###############################################
+        # Train CRF
+        ###############################################
+        for p in G.parameters():
+            p.requires_grad = False
+        for p in crf.parameters():
+            p.requires_grad = True
+        crf.zero_grad()
+        # print("crf")
+        # generate fake images latent dim from G^A
+        noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
+        fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
+        # if torch.isnan(A_inter).any() or torch.isinf(A_inter).any():
+        #    print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
+        logits_fake = D(fake_images, crop_idx)
+        y_fake_crf = crf(A_inter, logits_fake)
+        crf_fake_loss = loss_f(y_fake_crf, fake_labels)
 
-            # generate real images latent dim from E^H
-            A_real_inter = E(real_images)
-            logits_real = D(real_images_crop, crop_idx)
-            y_real_crf = crf(A_real_inter, logits_real)
-            crf_real_loss = loss_f(y_real_crf, real_labels)
+        # generate real images latent dim from E^H
+        A_real_inter = E(real_images)
+        logits_real = D(real_images_crop, crop_idx)
+        y_real_crf = crf(A_real_inter, logits_real)
+        crf_real_loss = loss_f(y_real_crf, real_labels)
 
-            crf_loss = crf_real_loss + crf_fake_loss
-            crf_loss.backward()
-            crf_optimizer.step()
+        crf_loss = crf_real_loss + crf_fake_loss
+        crf_loss.backward()
+        crf_optimizer.step()
 
         ###############################################
         # Train Encoder (E^H)
@@ -281,7 +281,7 @@ def main():
             p.requires_grad = True
         for p in crf.parameters():
             p.requires_grad = False
-        print("E")
+        # print("E")
         E.zero_grad()
         
         z_hat = E(real_images_crop)
@@ -298,7 +298,6 @@ def main():
             summary_writer.add_scalar('G_fake', g_loss.item(), iteration)
             summary_writer.add_scalar('E', e_loss.item(), iteration)
             summary_writer.add_scalar('CRF', crf_loss.item(), iteration)
-        # print(torch.cuda.memory_summary())
         ###############################################
         # Visualization with Tensorboard
         ################################################
@@ -326,6 +325,7 @@ def main():
 
 
 # ###################################################### my code to capture# with torch.autograd.profiler.profile(use_cuda=True) as prof:
+            '''
             # todo
             # Get the current memory usage
             if torch.cuda.is_available():
@@ -334,6 +334,7 @@ def main():
                 memory_usage = torch.cuda.memory_allocated() / 1024**3 + \
                                    torch.cuda.memory_reserved() / 1024**3
             summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
+        '''
         if iteration > 10000 and (iteration+1)%500 == 0:
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
