@@ -301,7 +301,7 @@ def main():
         ###############################################
         # Visualization with Tensorboard
         ################################################
-        if iteration%2 ==0:
+        if iteration%200 ==0:
         # if iteration % 10 == 0:
             print(iteration,"iter")
             print('[{}/{}]'.format(iteration, args.num_iter),
