@@ -197,6 +197,6 @@ class Generator(nn.Module):
         h = torch.tanh(h) # (256, 256, 256)
 
         if crf_need:
-            print("here", torch.isnan(h).any(), torch.isinf(h).any(), torch.isnan(h_latent).any(), torch.isinf(h_latent).any())
+            # print("here", torch.isnan(h).any(), torch.isinf(h).any(), torch.isnan(h_latent).any(), torch.isinf(h_latent).any())
             return h, h_latent
         return h
