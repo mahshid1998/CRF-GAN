@@ -228,7 +228,7 @@ def main():
                 fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
                 fake_detection_d = D(fake_images, crop_idx)
                 fake_detection_crf = crf(A_inter, fake_detection_d)
-                print(fake_detection_crf)
+                # print(fake_detection_crf)
                 y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
