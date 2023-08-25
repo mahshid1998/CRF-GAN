@@ -335,7 +335,7 @@ def main():
                                    torch.cuda.memory_reserved() / 1024**3
             summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
         '''
-        if iteration > 1and (iteration+1)% 2 == 0:
+        if iteration > 10000 and (iteration+1)% 500 == 0:
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
             torch.save({'model':E.state_dict(), 'optimizer':e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/E_iter'+str(iteration+1)+'.pth')
