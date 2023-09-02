@@ -62,6 +62,8 @@ parser.add_argument('--num-class', default=0, type=int,
 
 
 def main():
+    iteration_thresh = 60000
+    k = 0.0001
     # Configuration
     args = parser.parse_args()
 
@@ -90,7 +92,6 @@ def main():
     g_optimizer = optim.Adam(G.parameters(), lr=args.lr_g, betas=(0.0, 0.999), eps=1e-8)
     d_optimizer = optim.Adam(D.parameters(), lr=args.lr_d, betas=(0.0, 0.999), eps=1e-8)
     e_optimizer = optim.Adam(E.parameters(), lr=args.lr_e, betas=(0.0, 0.999), eps=1e-8)
-    # fixme
     crf_optimizer = optim.Adam(crf.parameters(), lr=args.lr_d, betas=(0.0, 0.999), eps=1e-8)
 
     # Resume from a previous checkpoint
@@ -113,7 +114,6 @@ def main():
         E.load_state_dict(ckpt['model'])
         e_optimizer.load_state_dict(ckpt['optimizer'])
 
-        # fixme
         ckpt_path = './checkpoint/'+args.exp_name+'/crf_iter'+str(args.continue_iter)+'.pth'
         ckpt = torch.load(ckpt_path, map_location='cuda')
         ckpt['model'] = trim_state_dict_name(ckpt['model'])
@@ -229,7 +229,15 @@ def main():
                 fake_detection_d = D(fake_images, crop_idx)
                 fake_detection_crf = crf(A_inter, fake_detection_d)
                 # print(fake_detection_crf)
-                y_fake_g = (fake_detection_crf + fake_detection_d)/2.
+                # fixme this is the alpha-CRF
+                # Calculate the weight for d2 based on the sigmoid function
+                weight_crf = torch.sigmoid(torch.tensor(k * (iteration_thresh - iteration)))
+                # Calculate the combined feedback signal with the weighted contribution
+                y_fake_g = (fake_detection_crf * weight_crf) + ((1-weight_crf) * fake_detection_d)
+
+
+
+                # y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
                 '''
@@ -301,7 +309,7 @@ def main():
         ###############################################
         # Visualization with Tensorboard
         ################################################
-        if iteration%20 ==0:
+        if iteration%50 ==0:
             print(iteration, "iter")
             print('[{}/{}]'.format(iteration, args.num_iter),
                   'D_real: {:<8.3}'.format(d_real_loss.item()),
@@ -335,7 +343,7 @@ def main():
                                    torch.cuda.memory_reserved() / 1024**3
             summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
         '''
-        if iteration > 10000 and (iteration+1)% 500 == 0:
+        if iteration > 10000 and (iteration+1)% 5000 == 0:
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
             torch.save({'model':E.state_dict(), 'optimizer':e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/E_iter'+str(iteration+1)+'.pth')
