@@ -229,9 +229,11 @@ def main():
                 fake_detection_d = D(fake_images, crop_idx)
                 fake_detection_crf = crf(A_inter, fake_detection_d)
                 # print(fake_detection_crf)
+
+
                 # fixme this is the alpha-CRF
-                # Calculate the weight for d2 based on the sigmoid function
-                weight_crf = torch.sigmoid(torch.tensor(k * (iteration_thresh - iteration)))
+                # Calculate the weight for CRF func
+                weight_crf = max(0.5 - (0.5 / 60000) * iteration, 0)
                 # Calculate the combined feedback signal with the weighted contribution
                 y_fake_g = (fake_detection_crf * weight_crf) + ((1-weight_crf) * fake_detection_d)
 
