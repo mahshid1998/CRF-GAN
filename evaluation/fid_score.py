@@ -13,7 +13,7 @@ from torch.nn import functional as F
 
 from volume_dataset import Volume_Dataset
 
-from models.Model_HA_GAN_256 import Generator, Encoder, Sub_Encoder
+from models.Model_HA_GAN_256 import Generator, Encoder
 from resnet3D import resnet50
 
 torch.manual_seed(0)

@@ -6,13 +6,14 @@ from skimage.transform import resize
 
 import torch
 
+'''
 def post_process_brain(x_pred):
     x_pred = resize(x_pred, (256-90,256-40,256-40), mode='constant', cval=0.)
     x_canvas = np.zeros((256,256,256))
     x_canvas[50:-40,20:-20,20:-20] = x_pred
     x_canvas = np.flip(x_canvas,0)
     return x_canvas
-
+'''
 def _itensity_normalize(volume):       
     pixels = volume[volume > 0]
     mean = pixels.mean()
@@ -24,6 +25,7 @@ class Flatten(torch.nn.Module):
     def forward(self, inp):
         return inp.view(inp.size(0), -1)
 
+
 def calculate_nmse(img1, img2):
     img1 = img1.astype(np.float64)
     img2 = img2.astype(np.float64)
@@ -33,6 +35,7 @@ def calculate_nmse(img1, img2):
         return float('inf')
     return mse / mse0 * 100.
 
+
 def calculate_psnr(img1, img2):
     # img1 and img2 have range [0, 1]
     img1 = img1.astype(np.float64)
@@ -41,6 +44,7 @@ def calculate_psnr(img1, img2):
     if mse == 0:
         return float('inf')
     return 20 * math.log10(1.0 / math.sqrt(mse))
+
 
 class KLN01Loss(torch.nn.Module):
 
