@@ -3,6 +3,7 @@
 import os
 import time
 from argparse import ArgumentParser
+from collections import OrderedDict
 
 import numpy as np
 from scipy import linalg
@@ -33,6 +34,7 @@ parser.add_argument('--latent_dim', type=int, default=1024)
 parser.add_argument('--basename', type=str, default="256_1024_Alpha_SN_v4plus_4_l1_GN_threshold_600_fold")
 parser.add_argument('--fold', type=int)
 
+
 def trim_state_dict_name(ckpt):
     new_state_dict = OrderedDict()
     for k, v in ckpt.items():
@@ -40,9 +42,11 @@ def trim_state_dict_name(ckpt):
         new_state_dict[name] = v
     return new_state_dict
 
+
 class Flatten(torch.nn.Module):
     def forward(self, inp):
         return inp.view(inp.size(0), -1)
+
 
 def generate_samples(args):
     G = Generator(mode='eval', latent_dim=args.latent_dim, num_class=0)
@@ -57,22 +61,23 @@ def generate_samples(args):
     ckpt = trim_state_dict_name(ckpt)
     E.load_state_dict(ckpt)
 
+    '''
     Sub_E = Sub_Encoder(args.latent_dim=args.latent_dim)
     ckpt_path = "./checkpoint/"+args.basename+str(args.fold)+"/Sub_E_iter"+str(args.ckpt_step)+".pth"
     ckpt = torch.load(ckpt_path)['model']
     ckpt = trim_state_dict_name(ckpt)
     Sub_E.load_state_dict(ckpt)
+    '''
     print("Weights step", args.ckpt_step, "loaded.")
     del ckpt
 
     G = nn.DataParallel(G).cuda()
     E = nn.DataParallel(E).cuda()
-    Sub_E = nn.DataParallel(Sub_E).cuda()
+    # Sub_E = nn.DataParallel(Sub_E).cuda()
 
     G.eval()
     E.eval()
-    Sub_E.eval()
-
+    # Sub_E.eval()
 
     model = get_feature_extractor()
     pred_arr = np.empty((args.num_samples, args.dims))
@@ -96,6 +101,7 @@ def generate_samples(args):
     print(' done')
     return pred_arr
 
+
 def get_activations_from_dataloader(model, data_loader, args):
 
     pred_arr = np.empty((args.num_samples, args.dims))
@@ -112,6 +118,7 @@ def get_activations_from_dataloader(model, data_loader, args):
             pred_arr[i*args.batch_size:(i+1)*args.batch_size] = pred.cpu().numpy()
     print(' done')
     return pred_arr
+
 
 def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     """Numpy implementation of the Frechet Distance.
@@ -169,10 +176,12 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     return (diff.dot(diff) + np.trace(sigma1) +
             np.trace(sigma2) - 2 * tr_covmean)
 
+
 def post_process(act):
     mu = np.mean(act, axis=0)
     sigma = np.cov(act, rowvar=False)
     return mu, sigma
+
 
 def get_feature_extractor():
     model = resnet50(shortcut_type='B')
@@ -186,6 +195,7 @@ def get_feature_extractor():
     model.eval()
     print("Feature extractor weights loaded")
     return model
+
 
 def calculate_fid_real(args):
     """Calculates the FID of two paths"""
@@ -202,6 +212,7 @@ def calculate_fid_real(args):
     np.save("./results/fid/pred_arr_real_train_size_"+str(args.img_size)+"_resnet50_GSP_fold"+str(args.fold)+".npy", act)
     #np.save("./results/fid/pred_arr_real_train_600_size_"+str(args.img_size)+"_resnet50_fold"+str(args.fold)+".npy", act)
     #calculate_mmd(args, act)
+
     m, s = post_process(act)
 
     m1 = np.load("./results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
@@ -209,18 +220,20 @@ def calculate_fid_real(args):
 
     fid_value = calculate_frechet_distance(m1, s1, m, s)
     print('FID: ', fid_value)
-    #np.save("./results/fid/m_real_train_600_size_"+str(args.img_size)+"_resnet50_fold"+str(args.fold)+".npy", m)
-    #np.save("./results/fid/s_real_train_600_size_"+str(args.img_size)+"_resnet50_fold"+str(args.fold)+".npy", s)
-    #np.save("./results/fid/m_real_train_size_"+str(args.img_size)+"_resnet50_GSP_fold"+str(args.fold)+".npy", m)
-    #np.save("./results/fid/s_real_train_size_"+str(args.img_size)+"_resnet50_GSP_fold"+str(args.fold)+".npy", s)
+    # np.save("./results/fid/m_real_train_600_size_"+str(args.img_size)+"_resnet50_fold"+str(args.fold)+".npy", m)
+    # np.save("./results/fid/s_real_train_600_size_"+str(args.img_size)+"_resnet50_fold"+str(args.fold)+".npy", s)
+    # np.save("./results/fid/m_real_train_size_"+str(args.img_size)+"_resnet50_GSP_fold"+str(args.fold)+".npy", m)
+    # np.save("./results/fid/s_real_train_size_"+str(args.img_size)+"_resnet50_GSP_fold"+str(args.fold)+".npy", s)
+
 
 def calculate_mmd_fake(args):
     assert os.path.exists("./results/fid/pred_arr_real_"+args.real_suffix+str(args.fold)+".npy")
     act = generate_samples(args)
     calculate_mmd(args, act)
 
+
 def calculate_fid_fake(args):
-    #assert os.path.exists("./results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
+    # assert os.path.exists("./results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
     act = generate_samples(args)
     m2, s2 = post_process(act)
 
@@ -240,9 +253,10 @@ def calculate_mmd(args, act):
     sample_2 = torch.from_numpy(act)
 
     test_statistics, ret_matrix = mmd(sample_1, sample_2, alphas='median', ret_matrix=True)
-    #p = mmd.pval(ret_matrix.float(), n_permutations=1000)
+    # p = mmd.pval(ret_matrix.float(), n_permutations=1000)
 
     print("\nMMD test statistics:", test_statistics.item())
+
 
 if __name__ == '__main__':
     args = parser.parse_args()
