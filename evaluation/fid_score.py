@@ -202,7 +202,7 @@ def calculate_fid_real(args):
     assert os.path.exists("./results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
 
     model = get_feature_extractor()
-    #dataset = COPD_dataset(img_size=args.img_size, stage="train", fold=args.fold, threshold=600)
+    # dataset = COPD_dataset(img_size=args.img_size, stage="train", fold=args.fold, threshold=600)
     dataset = Brain_dataset(img_size=args.img_size, stage="train", fold=args.fold)
     args.num_samples = len(dataset)
     print("Number of samples:", args.num_samples)
