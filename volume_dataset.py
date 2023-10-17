@@ -1,3 +1,4 @@
+import torch
 from torch.utils.data import Dataset
 from sklearn.model_selection import KFold
 import numpy as np

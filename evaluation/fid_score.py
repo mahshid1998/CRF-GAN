@@ -23,7 +23,7 @@ torch.backends.cudnn.benchmark = True
 
 parser = ArgumentParser()
 parser.add_argument('--path', type=str, default='')
-parser.add_argument('--real_suffix', type=str, default='eval_600_size_256_resnet50_fold')
+# parser.add_argument('--real_suffix', type=str, default='eval_600_size_256_resnet50_fold')
 parser.add_argument('--img_size', type=int, default=256)
 parser.add_argument('--batch_size', type=int, default=2)
 parser.add_argument('--num_workers', type=int, default=8)
@@ -31,8 +31,8 @@ parser.add_argument('--num_samples', type=int, default=2048)
 parser.add_argument('--dims', type=int, default=2048)
 parser.add_argument('--ckpt_step', type=int, default=80000)
 parser.add_argument('--latent_dim', type=int, default=1024)
-parser.add_argument('--basename', type=str, default="256_1024_Alpha_SN_v4plus_4_l1_GN_threshold_600_fold")
-parser.add_argument('--fold', type=int)
+# parser.add_argument('--basename', type=str, default="256_1024_Alpha_SN_v4plus_4_l1_GN_threshold_600_fold")
+# parser.add_argument('--fold', type=int)
 
 
 def trim_state_dict_name(ckpt):
@@ -50,55 +50,33 @@ class Flatten(torch.nn.Module):
 
 def generate_samples(args):
     G = Generator(mode='eval', latent_dim=args.latent_dim, num_class=0)
-    ckpt_path = "./checkpoint/"+args.basename+str(args.fold)+"/G_iter"+str(args.ckpt_step)+".pth"
+    # ckpt_path = "./checkpoint/"+args.basename+str(args.fold)+"/G_iter"+str(args.ckpt_step)+".pth"
+    # todo
+    ckpt_path = '/home/mahshid/Desktop/69kRES/69kRES_CRF-GAN/G_iter69000.pth'
     ckpt = torch.load(ckpt_path)['model']
     ckpt = trim_state_dict_name(ckpt)
     G.load_state_dict(ckpt)
-
-    E = Encoder()
-    ckpt_path = "./checkpoint/"+args.basename+str(args.fold)+"/E_iter"+str(args.ckpt_step)+".pth"
-    ckpt = torch.load(ckpt_path)['model']
-    ckpt = trim_state_dict_name(ckpt)
-    E.load_state_dict(ckpt)
-
-    '''
-    Sub_E = Sub_Encoder(args.latent_dim=args.latent_dim)
-    ckpt_path = "./checkpoint/"+args.basename+str(args.fold)+"/Sub_E_iter"+str(args.ckpt_step)+".pth"
-    ckpt = torch.load(ckpt_path)['model']
-    ckpt = trim_state_dict_name(ckpt)
-    Sub_E.load_state_dict(ckpt)
-    '''
     print("Weights step", args.ckpt_step, "loaded.")
     del ckpt
 
     G = nn.DataParallel(G).cuda()
-    E = nn.DataParallel(E).cuda()
-    # Sub_E = nn.DataParallel(Sub_E).cuda()
-
     G.eval()
-    E.eval()
-    # Sub_E.eval()
-
     model = get_feature_extractor()
     pred_arr = np.empty((args.num_samples, args.dims))
-
     for i in range(args.num_samples//args.batch_size):
         if i % 10 == 0:
             print('\rPropagating batch %d' % i, end='', flush=True)
         with torch.no_grad():
-
-            noise = torch.randn((args.batch_size, args.latent_size)).cuda()
+            noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
             x_rand = G(noise) # dumb index 0, not used
             # range: [-1,1]
             x_rand = x_rand.detach()
             pred = model(x_rand)
-
         if (i+1)*args.batch_size > pred_arr.shape[0]:
             pred_arr[i*args.batch_size:] = pred.cpu().numpy()
         else:
             pred_arr[i*args.batch_size:(i+1)*args.batch_size] = pred.cpu().numpy()
-
-    print(' done')
+    print('done, generating samples')
     return pred_arr
 
 
@@ -108,7 +86,7 @@ def get_activations_from_dataloader(model, data_loader, args):
     for i, batch in enumerate(data_loader):
         if i % 10 == 0:
             print('\rPropagating batch %d' % i, end='', flush=True)
-        batch = batch.float().cuda()
+        batch = batch[0].float().cuda()
         with torch.no_grad():
             pred = model(batch)
 
@@ -116,7 +94,7 @@ def get_activations_from_dataloader(model, data_loader, args):
             pred_arr[i*args.batch_size:] = pred.cpu().numpy()
         else:
             pred_arr[i*args.batch_size:(i+1)*args.batch_size] = pred.cpu().numpy()
-    print(' done')
+    print(' done get_activation_from_dataloader')
     return pred_arr
 
 
@@ -185,10 +163,10 @@ def post_process(act):
 
 def get_feature_extractor():
     model = resnet50(shortcut_type='B')
-    model.conv_seg = nn.Sequential(nn.AdaptiveAvgPool3d((1, 1, 1)),
-                                   Flatten()) # (N, 512)
+    model.conv_seg = nn.Sequential(nn.AdaptiveAvgPool3d((1, 1, 1)), Flatten())# (N, 512)
     # ckpt from https://drive.google.com/file/d/1399AsrYpQDi1vq6ciKRQkfknLsQQyigM/view?usp=sharing
-    ckpt = torch.load("../gnn_shared/ckpt/pretrain/resnet_50.pth")
+    # todo
+    ckpt = torch.load("/home/mahshid/Desktop/Git-myProject/evaluation/results/MedicalNet_pytorch_files/pretrain/resnet_50.pth")
     ckpt = trim_state_dict_name(ckpt["state_dict"])
     model.load_state_dict(ckpt) # No conv_seg module in ckpt
     model = nn.DataParallel(model).cuda()
@@ -199,31 +177,24 @@ def get_feature_extractor():
 
 def calculate_fid_real(args):
     """Calculates the FID of two paths"""
-    assert os.path.exists("./results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
-
     model = get_feature_extractor()
-    # dataset = COPD_dataset(img_size=args.img_size, stage="train", fold=args.fold, threshold=600)
-    dataset = Brain_dataset(img_size=args.img_size, stage="train", fold=args.fold)
-    args.num_samples = len(dataset)
+    trainset = Volume_Dataset(data_dir=args.path, fold=0, num_class=0)
+    args.num_samples = len(trainset)
     print("Number of samples:", args.num_samples)
-    data_loader = torch.utils.data.DataLoader(dataset,batch_size=args.batch_size,drop_last=False,
-                                               shuffle=False,num_workers=args.num_workers)
+    data_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, drop_last=False,
+                                              shuffle=False, num_workers=args.num_workers)
     act = get_activations_from_dataloader(model, data_loader, args)
-    np.save("./results/fid/pred_arr_real_train_size_"+str(args.img_size)+"_resnet50_GSP_fold"+str(args.fold)+".npy", act)
-    #np.save("./results/fid/pred_arr_real_train_600_size_"+str(args.img_size)+"_resnet50_fold"+str(args.fold)+".npy", act)
-    #calculate_mmd(args, act)
 
+    # todo
+    np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/resnet50_256GSP_ACT.npy", act)
+    print("saved act")
+    # calculate_mmd(args, act)
     m, s = post_process(act)
 
-    m1 = np.load("./results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
-    s1 = np.load("./results/fid/s_real_"+args.real_suffix+str(args.fold)+".npy")
-
-    fid_value = calculate_frechet_distance(m1, s1, m, s)
-    print('FID: ', fid_value)
-    # np.save("./results/fid/m_real_train_600_size_"+str(args.img_size)+"_resnet50_fold"+str(args.fold)+".npy", m)
-    # np.save("./results/fid/s_real_train_600_size_"+str(args.img_size)+"_resnet50_fold"+str(args.fold)+".npy", s)
-    # np.save("./results/fid/m_real_train_size_"+str(args.img_size)+"_resnet50_GSP_fold"+str(args.fold)+".npy", m)
-    # np.save("./results/fid/s_real_train_size_"+str(args.img_size)+"_resnet50_GSP_fold"+str(args.fold)+".npy", s)
+    print("saving m , s")
+    # todo
+    np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/m_real_resnet50_256GSP"+str(args.fold)+".npy", m)
+    np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/s_real_resnet50_256GSP"+str(args.fold)+".npy", s)
 
 
 def calculate_mmd_fake(args):
@@ -233,12 +204,11 @@ def calculate_mmd_fake(args):
 
 
 def calculate_fid_fake(args):
-    # assert os.path.exists("./results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
     act = generate_samples(args)
     m2, s2 = post_process(act)
-
-    m1 = np.load("./results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
-    s1 = np.load("./results/fid/s_real_"+args.real_suffix+str(args.fold)+".npy")
+    # todo
+    m1 = np.load("home/mahshid/Desktop/Git-myProject/evaluation/results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
+    s1 = np.load("home/mahshid/Desktop/Git-myProject/evaluation/results/fid/s_real_"+args.real_suffix+str(args.fold)+".npy")
 
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)
     print('FID: ', fid_value)
@@ -262,5 +232,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     start_time = time.time()
     calculate_fid_real(args)
-    calculate_fid_fake(args)
+    print("fid real done")
+    # calculate_fid_fake(args)
     print("Done. Using", (time.time()-start_time)//60, "minutes.")
