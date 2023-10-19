@@ -22,14 +22,17 @@ torch.cuda.manual_seed_all(0)
 torch.backends.cudnn.benchmark = True
 
 parser = ArgumentParser()
-parser.add_argument('--path', type=str, default='')
+parser.add_argument('--path_data', type=str, default='')
+parser.add_argument('--path_g', type=str, default='')
+parser.add_argument('--path_save', type=str, default='')
+parser.add_argument('--exp_name', type=str, default='')
+parser.add_argument('--ckpt_step', type=int, default=80000)
 # parser.add_argument('--real_suffix', type=str, default='eval_600_size_256_resnet50_fold')
 parser.add_argument('--img_size', type=int, default=256)
 parser.add_argument('--batch_size', type=int, default=2)
 parser.add_argument('--num_workers', type=int, default=8)
 parser.add_argument('--num_samples', type=int, default=2048)
 parser.add_argument('--dims', type=int, default=2048)
-parser.add_argument('--ckpt_step', type=int, default=80000)
 parser.add_argument('--latent_dim', type=int, default=1024)
 # parser.add_argument('--basename', type=str, default="256_1024_Alpha_SN_v4plus_4_l1_GN_threshold_600_fold")
 # parser.add_argument('--fold', type=int)
@@ -52,7 +55,8 @@ def generate_samples(args):
     G = Generator(mode='eval', latent_dim=args.latent_dim, num_class=0)
     # ckpt_path = "./checkpoint/"+args.basename+str(args.fold)+"/G_iter"+str(args.ckpt_step)+".pth"
     # todo
-    ckpt_path = '/home/mahshid/Desktop/69kRES/69kRES_CRF-GAN/G_iter69000.pth'
+    # ckpt_path = '/home/mahshid/Desktop/69kRES/69kRES_CRF-GAN/G_iter69000.pth'
+    ckpt_path = args.path_g
     ckpt = torch.load(ckpt_path)['model']
     ckpt = trim_state_dict_name(ckpt)
     G.load_state_dict(ckpt)
@@ -178,7 +182,7 @@ def get_feature_extractor():
 def calculate_fid_real(args):
     """Calculates the FID of two paths"""
     model = get_feature_extractor()
-    trainset = Volume_Dataset(data_dir=args.path, fold=0, num_class=0)
+    trainset = Volume_Dataset(data_dir=args.path_data, fold=0, num_class=0)
     args.num_samples = len(trainset)
     print("Number of samples:", args.num_samples)
     data_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, drop_last=False,
@@ -186,16 +190,18 @@ def calculate_fid_real(args):
     act = get_activations_from_dataloader(model, data_loader, args)
 
     # todo
-    np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/resnet50_256GSP_ACT.npy", act)
+    #np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/resnet50_256GSP_ACT.npy", act)
+    np.save(args.path_save + "/resnet50_256GSP_ACT.npy", act)
     print("saved act")
     # calculate_mmd(args, act)
     m, s = post_process(act)
 
     print("saving m , s")
     # todo
-    np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/m_real_resnet50_256GSP"+str(args.fold)+".npy", m)
-    np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/s_real_resnet50_256GSP"+str(args.fold)+".npy", s)
-
+    # np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/m_real_resnet50_256GSP"+str(args.fold)+".npy", m)
+    # np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/s_real_resnet50_256GSP"+str(args.fold)+".npy", s)
+    np.save(args.path_save + "/m_real.npy", m)
+    np.save(args.path_save + "/s_real.npy", s)
 
 def calculate_mmd_fake(args):
     assert os.path.exists("./results/fid/pred_arr_real_"+args.real_suffix+str(args.fold)+".npy")
@@ -207,11 +213,12 @@ def calculate_fid_fake(args):
     act = generate_samples(args)
     m2, s2 = post_process(act)
     # todo
-    m1 = np.load("home/mahshid/Desktop/Git-myProject/evaluation/results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
-    s1 = np.load("home/mahshid/Desktop/Git-myProject/evaluation/results/fid/s_real_"+args.real_suffix+str(args.fold)+".npy")
-
+    # m1 = np.load("home/mahshid/Desktop/Git-myProject/evaluation/results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
+    # s1 = np.load("home/mahshid/Desktop/Git-myProject/evaluation/results/fid/s_real_"+args.real_suffix+str(args.fold)+".npy")
+    m1 = np.load(args.path_save + "/m_real.npy")
+    s1 = np.load(args.path_save + "/s_real.npy")
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)
-    print('FID: ', fid_value)
+    print('FID: ', fid_value, ' exp name: ', args.exp_name, 'step: ', args.ckpt_step)
 
 
 def calculate_mmd(args, act):
