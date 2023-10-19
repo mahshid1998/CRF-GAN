@@ -56,7 +56,7 @@ def generate_samples(args):
     # ckpt_path = "./checkpoint/"+args.basename+str(args.fold)+"/G_iter"+str(args.ckpt_step)+".pth"
     # todo
     # ckpt_path = '/home/mahshid/Desktop/69kRES/69kRES_CRF-GAN/G_iter69000.pth'
-    ckpt_path = args.path_g
+    ckpt_path = args.path_g + "/G_iter" + args.ckpt_step + ".pth"
     ckpt = torch.load(ckpt_path)['model']
     ckpt = trim_state_dict_name(ckpt)
     G.load_state_dict(ckpt)
@@ -170,7 +170,7 @@ def get_feature_extractor():
     model.conv_seg = nn.Sequential(nn.AdaptiveAvgPool3d((1, 1, 1)), Flatten())# (N, 512)
     # ckpt from https://drive.google.com/file/d/1399AsrYpQDi1vq6ciKRQkfknLsQQyigM/view?usp=sharing
     # todo
-    ckpt = torch.load("/home/mahshid/Desktop/Git-myProject/evaluation/results/MedicalNet_pytorch_files/pretrain/resnet_50.pth")
+    ckpt = torch.load("/mnt/data/mashid/pro/CRF-GAN/evaluation/fid/resnet/resnet_50.pth")
     ckpt = trim_state_dict_name(ckpt["state_dict"])
     model.load_state_dict(ckpt) # No conv_seg module in ckpt
     model = nn.DataParallel(model).cuda()
