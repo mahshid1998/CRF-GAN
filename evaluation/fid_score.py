@@ -13,7 +13,6 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from volume_dataset import Volume_Dataset
-
 from models.Model_HA_GAN_256 import Generator, Encoder
 from resnet3D import resnet50
 
@@ -26,7 +25,7 @@ parser.add_argument('--path_data', type=str, default='')
 parser.add_argument('--path_g', type=str, default='')
 parser.add_argument('--path_save', type=str, default='')
 parser.add_argument('--exp_name', type=str, default='')
-parser.add_argument('--ckpt_step', type=int, default=80000)
+parser.add_argument('--ckpt_step', type=int, default=0)
 # parser.add_argument('--real_suffix', type=str, default='eval_600_size_256_resnet50_fold')
 parser.add_argument('--img_size', type=int, default=256)
 parser.add_argument('--batch_size', type=int, default=2)
@@ -37,7 +36,17 @@ parser.add_argument('--latent_dim', type=int, default=1024)
 # parser.add_argument('--basename', type=str, default="256_1024_Alpha_SN_v4plus_4_l1_GN_threshold_600_fold")
 # parser.add_argument('--fold', type=int)
 
+'''
+def trim_state_dict_name(state_dict):
+    for k in list(state_dict.keys()):
+        if k.startswith('module.'):
+            # remove prefix
+            state_dict[k[len("module."):]] = state_dict[k]
+            del state_dict[k]
+    return state_dict
 
+
+'''
 def trim_state_dict_name(ckpt):
     new_state_dict = OrderedDict()
     for k, v in ckpt.items():
@@ -56,7 +65,8 @@ def generate_samples(args):
     # ckpt_path = "./checkpoint/"+args.basename+str(args.fold)+"/G_iter"+str(args.ckpt_step)+".pth"
     # todo
     # ckpt_path = '/home/mahshid/Desktop/69kRES/69kRES_CRF-GAN/G_iter69000.pth'
-    ckpt_path = args.path_g + "/G_iter" + args.ckpt_step + ".pth"
+    ckpt_path = args.path_g + "/G_iter" + str(args.ckpt_step) + ".pth"
+    print(ckpt_path)
     ckpt = torch.load(ckpt_path)['model']
     ckpt = trim_state_dict_name(ckpt)
     G.load_state_dict(ckpt)
@@ -170,7 +180,7 @@ def get_feature_extractor():
     model.conv_seg = nn.Sequential(nn.AdaptiveAvgPool3d((1, 1, 1)), Flatten())# (N, 512)
     # ckpt from https://drive.google.com/file/d/1399AsrYpQDi1vq6ciKRQkfknLsQQyigM/view?usp=sharing
     # todo
-    ckpt = torch.load("/mnt/data/mashid/pro/CRF-GAN/evaluation/fid/resnet/resnet_50.pth")
+    ckpt = torch.load("resnet_50.pth")
     ckpt = trim_state_dict_name(ckpt["state_dict"])
     model.load_state_dict(ckpt) # No conv_seg module in ckpt
     model = nn.DataParallel(model).cuda()
@@ -238,7 +248,7 @@ def calculate_mmd(args, act):
 if __name__ == '__main__':
     args = parser.parse_args()
     start_time = time.time()
-    calculate_fid_real(args)
+    # calculate_fid_real(args)
     print("fid real done")
-    # calculate_fid_fake(args)
+    calculate_fid_fake(args)
     print("Done. Using", (time.time()-start_time)//60, "minutes.")
