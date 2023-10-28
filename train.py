@@ -23,7 +23,7 @@ torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 cudnn.benchmark = True
 
-parser = argparse.ArgumentParser(description='PyTorch HA-GAN Training')
+parser = argparse.ArgumentParser(description='PyTorch CRF-GAN Training')
 parser.add_argument('--batch-size', default=4, type=int,
                     help='mini-batch size (default: 4), this is the total '
                          'batch size of all GPUs')
@@ -160,7 +160,7 @@ def main():
     print(d_param/10**6, g_param/10**6, e_param/10**6, crf_param/10**6, (d_param + g_param + e_param + crf_param)/10**6)
     exit(10)
     """
-    print("I am alpha version")
+    print("I am CRF-GAN version")
     for iteration in range(args.continue_iter, args.num_iter):
         # print("iteration :", iteration)
 
@@ -231,16 +231,15 @@ def main():
                 fake_detection_crf = crf(A_inter, fake_detection_d)
                 # print(fake_detection_crf)
 
-
+                '''
                 # fixme this is the alpha-CRF
                 # Calculate the weight for CRF func
                 weight_crf = max(0.5 - (0.5 / 60000) * iteration, 0)
                 # Calculate the combined feedback signal with the weighted contribution
                 y_fake_g = (fake_detection_crf * weight_crf) + ((1-weight_crf) * fake_detection_d)
+                '''
 
-
-
-                # y_fake_g = (fake_detection_crf + fake_detection_d)/2.
+                y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
                 '''
