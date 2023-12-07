@@ -34,7 +34,7 @@ parser.add_argument('--num_samples', type=int, default=2048)
 parser.add_argument('--dims', type=int, default=2048)
 parser.add_argument('--latent_dim', type=int, default=1024)
 # parser.add_argument('--basename', type=str, default="256_1024_Alpha_SN_v4plus_4_l1_GN_threshold_600_fold")
-# parser.add_argument('--fold', type=int)
+parser.add_argument('--fold', type=int)
 
 '''
 def trim_state_dict_name(state_dict):
@@ -82,7 +82,7 @@ def generate_samples(args):
             print('\rPropagating batch %d' % i, end='', flush=True)
         with torch.no_grad():
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
-            x_rand = G(noise) # dumb index 0, not used
+            x_rand = G(noise)# dumb index 0, not used
             # range: [-1,1]
             x_rand = x_rand.detach()
             pred = model(x_rand)
@@ -192,7 +192,7 @@ def get_feature_extractor():
 def calculate_fid_real(args):
     """Calculates the FID of two paths"""
     model = get_feature_extractor()
-    trainset = Volume_Dataset(data_dir=args.path_data, fold=0, num_class=0)
+    trainset = Volume_Dataset(data_dir=args.path_data, fold=args.fold, num_class=0)
     args.num_samples = len(trainset)
     print("Number of samples:", args.num_samples)
     data_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, drop_last=False,
@@ -233,7 +233,6 @@ def calculate_fid_fake(args):
 
 def calculate_mmd(args, act):
     from torch_two_sample.statistics_diff import MMDStatistic
-
     act_real = np.load("./results/fid/pred_arr_real_"+args.real_suffix+str(args.fold)+".npz")['arr_0']
     mmd = MMDStatistic(act_real.shape[0], act.shape[0])
     sample_1 = torch.from_numpy(act_real)
@@ -248,7 +247,7 @@ def calculate_mmd(args, act):
 if __name__ == '__main__':
     args = parser.parse_args()
     start_time = time.time()
-    # calculate_fid_real(args)
+    calculate_fid_real(args)
     print("fid real done")
     calculate_fid_fake(args)
     print("Done. Using", (time.time()-start_time)//60, "minutes.")

@@ -160,7 +160,7 @@ def main():
     print(d_param/10**6, g_param/10**6, e_param/10**6, crf_param/10**6, (d_param + g_param + e_param + crf_param)/10**6)
     exit(10)
     """
-    print("I am CRF-GAN version")
+    print("I am alpha CRF-GAN version")
     for iteration in range(args.continue_iter, args.num_iter):
         # print("iteration :", iteration)
 
@@ -231,15 +231,15 @@ def main():
                 fake_detection_crf = crf(A_inter, fake_detection_d)
                 # print(fake_detection_crf)
 
-                '''
+
                 # fixme this is the alpha-CRF
                 # Calculate the weight for CRF func
                 weight_crf = max(0.5 - (0.5 / 60000) * iteration, 0)
                 # Calculate the combined feedback signal with the weighted contribution
                 y_fake_g = (fake_detection_crf * weight_crf) + ((1-weight_crf) * fake_detection_d)
-                '''
 
-                y_fake_g = (fake_detection_crf + fake_detection_d)/2.
+
+                # y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
                 '''
