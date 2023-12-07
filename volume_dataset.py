@@ -17,7 +17,7 @@ class Volume_Dataset(Dataset):
         self.sid_list.sort()
         self.sid_list = np.asarray(self.sid_list)
 
-        kf = KFold(n_splits=5, shuffle=True, random_state=0)
+        kf = KFold(n_splits=10, shuffle=True, random_state=0)
         train_index, valid_index = list(kf.split(self.sid_list))[fold]
         print("Fold:", fold)
         if mode=="train":
