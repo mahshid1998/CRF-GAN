@@ -30,7 +30,7 @@ class Encoder(nn.Module):
 
 
 class CRF(nn.Module):
-    def __init__(self, num_nodes, iteration=10):
+    def __init__(self, num_nodes, iteration=10,  num_class=0):
         """Initialize the CRF module
 
         Args:
@@ -40,9 +40,12 @@ class CRF(nn.Module):
         super(CRF, self).__init__()
         self.num_nodes = num_nodes
         self.iteration = iteration
-        self.W = nn.Parameter(torch.zeros(1, num_nodes, num_nodes))
+        if num_class > 0:
+            self.W = nn.Parameter(torch.zeros(num_class, num_nodes, num_nodes))
+        else:
+            self.W = nn.Parameter(torch.zeros(1, num_nodes, num_nodes))
 
-    def forward(self, a_inter, logits):
+    def forward(self, a_inter, logits, logits_class):
         """
         logits > 0 means tumor and logits < 0 means normal.
         if probs -> 1, then pairwise_potential promotes tumor probability;
@@ -64,7 +67,6 @@ class CRF(nn.Module):
         batch_size, channels, _, height, width = a_inter.shape
         # Reshape tensor A to feats
         feats = a_inter[:, :, :self.num_nodes, :, :].reshape(batch_size, self.num_nodes, -1)
-        logits = logits.unsqueeze(1).expand(-1, self.num_nodes, -1)
         feats_norm = torch.norm(feats, p=2, dim=2, keepdim=True)
         pairwise_norm = torch.bmm(feats_norm, torch.transpose(feats_norm, 1, 2))
         pairwise_dot = torch.bmm(feats, torch.transpose(feats, 1, 2))
@@ -73,6 +75,9 @@ class CRF(nn.Module):
         # symmetric constraint for CRF weights
         W_sym = (self.W + torch.transpose(self.W, 1, 2)) / 2.
         pairwise_potential = pairwise_sim * W_sym
+
+
+        logits = logits.unsqueeze(1).expand(-1, self.num_nodes, -1)
         unary_potential = logits.clone()
         for i in range(self.iteration):
             # current Q after normalizing the logits

@@ -32,7 +32,7 @@ class Encoder(nn.Module):
 
 
 class CRF(nn.Module):
-    def __init__(self, num_nodes, iteration=10):
+    def __init__(self, num_nodes, iteration=10, num_class=2):
         """Initialize the CRF module
 
         Args:
@@ -43,8 +43,11 @@ class CRF(nn.Module):
         self.num_nodes = num_nodes
         self.iteration = iteration
         self.W = nn.Parameter(torch.zeros(1, num_nodes, num_nodes))
+        self.num_class = num_class
+        if num_class > 0:
+            self.W_class = nn.Parameter(torch.zeros(num_class, num_nodes, num_nodes))
 
-    def forward(self, a_inter, logits):
+    def forward(self, a_inter, logits, logits_class=torch.tensor([])):
         """
         logits > 0 means tumor and logits < 0 means normal.
         if probs -> 1, then pairwise_potential promotes tumor probability;
@@ -66,38 +69,18 @@ class CRF(nn.Module):
         batch_size, channels, _, height, width = a_inter.shape
         # Reshape tensor A to feats
         feats = a_inter[:, :, :self.num_nodes, :, :].reshape(batch_size, self.num_nodes, -1)
-        logits = logits.unsqueeze(1).expand(-1, self.num_nodes, -1)
-
         feats_norm = torch.norm(feats, p=2, dim=2, keepdim=True)
-        # print("feats", torch.isinf(feats).any().item(), torch.any(feats == 0).item())
-        # print("feats norm", torch.isinf(feats_norm).any().item(), torch.any(feats_norm == 0).item())
-        # if torch.isnan(feats_norm).any():
-        #    print("feats norm NAN")
-
         pairwise_norm = torch.bmm(feats_norm, torch.transpose(feats_norm, 1, 2))
-
-        # print("pairwise Norm", torch.isinf(pairwise_norm).any().item(), torch.any(pairwise_norm == 0).item())
-        # if torch.isnan(pairwise_norm).any():
-        #    print("pairwise norm NAN")
-
         pairwise_dot = torch.bmm(feats, torch.transpose(feats, 1, 2))
-        #print("dot ", torch.isinf(pairwise_dot).any().item(), torch.any(pairwise_dot == 0).item())
-        #if torch.isnan(pairwise_dot).any():
-        #    print("pairwise dot NAN")
-
-
         # cosine similarity between feats
         pairwise_sim = pairwise_dot / (pairwise_norm + 1e-6)
-        # if torch.isnan(pairwise_sim).any():
-        #    print("pairwise sim NAN")
-        #    exit(10)
 
         # symmetric constraint for CRF weights
         W_sym = (self.W + torch.transpose(self.W, 1, 2)) / 2.
-        # if torch.isnan(W_sym).any():
-        #    print("W_sym NAN")
-
         pairwise_potential = pairwise_sim * W_sym
+        # print("W: ",W_sym.shape, "Sim:",pairwise_sim.shape, ":D")
+
+        logits = logits.unsqueeze(1).expand(-1, self.num_nodes, -1)
         unary_potential = logits.clone()
         for i in range(self.iteration):
             # current Q after normalizing the logits
@@ -105,6 +88,33 @@ class CRF(nn.Module):
             # taking expectation of pairwise_potential using current Q
             pairwise_potential_E = torch.sum(probs * pairwise_potential - (1 - probs) * pairwise_potential, dim=2, keepdim=True)
             logits = unary_potential + pairwise_potential_E
+
+        logits_class = torch.tensor([[0.5,0.5], [0.5,0.5], [0.5,0.5]])
+
+        if self.num_class > 0:
+            W_class_sym = (self.W_class + torch.transpose(self.W_class, 1, 2)) / 2.
+            print(W_class_sym)
+            # print(pairwise_sim.shape)
+            # print("W class:", W_class_sym.unsqueeze(0).shape, "pairwise squeezi:", pairwise_sim.unsqueeze(1).shape)
+
+            pairwise_potential_class = torch.mul(W_class_sym.unsqueeze(0), pairwise_sim.unsqueeze(1))
+            # print(pairwise_sim)
+            # print(pairwise_potential_class)
+            # ???????????????????????????????????????????????????????????????????
+            # print("pairwise class:",pairwise_potential_class.shape)
+            # exit(10)
+            logits_class = logits_class.unsqueeze(1).expand(-1, self.num_nodes, -1)
+            unary_potential_class = logits_class.clone()
+            for i in range(self.iteration):
+                # current Q after normalizing the logits
+                probs_class = torch.transpose(F.softmax(logits_class, dim=1), 1, 2)
+                print("prob class: ", probs_class.shape)
+                # taking expectation of pairwise_potential using current Q
+                pairwise_potential_E_class = torch.sum(probs_class * pairwise_potential_class - (1 - probs_class) *
+                                                       pairwise_potential_class, dim=2, keepdim=True)
+                logits_class = unary_potential_class + pairwise_potential_E_class
+
+
         return logits.mean(dim=1)
 
 

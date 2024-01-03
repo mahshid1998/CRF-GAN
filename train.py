@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-# train HA-GAN
-# Hierarchical Amortized GAN for 3D High Resolution Medical Image Synthesis
-# https://ieeexplore.ieee.org/abstract/document/9770375
 import numpy as np
 import torch
 import os
@@ -18,6 +14,8 @@ from utils import trim_state_dict_name, inf_train_gen
 from volume_dataset import Volume_Dataset
 from torch.backends import cudnn
 import matplotlib.pyplot as plt
+from torch.nn import functional as F
+
 
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
@@ -49,24 +47,21 @@ parser.add_argument('--lr-e', default=0.0001, type=float,
                     help='learning rate for the encoder')
 parser.add_argument('--data-dir', type=str,
                     help='path to the preprocessed data folder')
-parser.add_argument('--exp-name', default='HA_GAN_run1', type=str,
+parser.add_argument('--exp-name', default='CRF_GAN_run1', type=str,
                     help='name of the experiment')
 parser.add_argument('--fold', default=0, type=int,
                     help='fold number for cross validation')
 
 # configs for conditional generation
-parser.add_argument('--lambda-class', default=0.1, type=float,
+parser.add_argument('--lambda_class', default=0.1, type=float,
                     help='weights for the auxiliary classifier loss')
-parser.add_argument('--num-class', default=0, type=int,
+parser.add_argument('--num_class', default=0, type=int,
                     help='number of class for auxiliary classifier (0 if unconditional)')
 
 
 def main():
-    iteration_thresh = 60000
-    k = 0.0001
     # Configuration
     args = parser.parse_args()
-
     trainset = Volume_Dataset(data_dir=args.data_dir, fold=args.fold, num_class=args.num_class)
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, drop_last=True,
                                                shuffle=False, num_workers=args.workers)
@@ -87,7 +82,7 @@ def main():
     G = Generator(mode='train', latent_dim=args.latent_dim, num_class=args.num_class).cuda()
     D = Discriminator(num_class=args.num_class).cuda()
     E = Encoder().cuda()
-    crf = CRF(num_nodes=crf_num_nodes, iteration=10).cuda()
+    crf = CRF(num_nodes=crf_num_nodes, iteration=10, num_class=2).cuda()
 
     g_optimizer = optim.Adam(G.parameters(), lr=args.lr_g, betas=(0.0, 0.999), eps=1e-8)
     d_optimizer = optim.Adam(D.parameters(), lr=args.lr_d, betas=(0.0, 0.999), eps=1e-8)
@@ -160,10 +155,8 @@ def main():
     print(d_param/10**6, g_param/10**6, e_param/10**6, crf_param/10**6, (d_param + g_param + e_param + crf_param)/10**6)
     exit(10)
     """
-    print("I am alpha CRF-GAN version")
+    # print("I am alpha CRF-GAN version")
     for iteration in range(args.continue_iter, args.num_iter):
-        # print("iteration :", iteration)
-
         ###############################################
         # Train Discriminator (D^H)
         ###############################################
@@ -188,7 +181,7 @@ def main():
             fake_images = G(noise, crop_idx=crop_idx, class_label=None)
             y_fake_pred = D(fake_images, crop_idx)
         else:  # conditional
-            """
+
             class_label_onehot = F.one_hot(class_label, num_classes=args.num_class)
             class_label = class_label.long().cuda()
             class_label_onehot = class_label_onehot.float().cuda()
@@ -205,10 +198,12 @@ def main():
             fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
             y_fake_pred, y_fake_class= D(fake_images, fake_images_small, crop_idx)
             '''
-            fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
             fake_images = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
-            y_fake_pred, y_fake_class = D(fake_images, crop_idx, fake_img_for_crf)
-            """
+            # fake_images = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
+            y_fake_pred, y_fake_class = D(fake_images, crop_idx)
+
+
+        #حواسم باشه وقتی میخوام عوض بکنم این رو ببرم داخل ایف ها چون فرق داره دیگه برای هرکدوم ؟؟؟؟؟
         d_fake_loss = loss_f(y_fake_pred, fake_labels)
         d_loss = d_real_loss + d_fake_loss
         d_loss.backward()
@@ -222,36 +217,35 @@ def main():
         for p in G.parameters():
             p.requires_grad = True
         for iters in range(args.g_iter):
-            # print("G")
             G.zero_grad()
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
             if args.num_class == 0:  # unconditional
                 fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
                 fake_detection_d = D(fake_images, crop_idx)
                 fake_detection_crf = crf(A_inter, fake_detection_d)
-                # print(fake_detection_crf)
 
-
-                # fixme this is the alpha-CRF
+                '''
+                # alpha-CRF
                 # Calculate the weight for CRF func
-                weight_crf = max(0.5 - (0.5 / 60000) * iteration, 0)
+                # weight_crf = max(0.5 - (0.5 / 60000) * iteration, 0)
                 # Calculate the combined feedback signal with the weighted contribution
-                y_fake_g = (fake_detection_crf * weight_crf) + ((1-weight_crf) * fake_detection_d)
+                # y_fake_g = (fake_detection_crf * weight_crf) + ((1-weight_crf) * fake_detection_d)
+                '''
 
-
-                # y_fake_g = (fake_detection_crf + fake_detection_d)/2.
+                y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
-                '''
-                fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
-                y_fake_g, y_fake_g_class = D(fake_images, fake_images_small, crop_idx)
-                
-                fake_images, fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
-                y_fake_g, y_fake_g_class = D(fake_images, crop_idx, fake_img_for_crf)
 
+                fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
+                y_fake_g_d, y_fake_g_class_d = D(fake_images, crop_idx)
+                y_fake_g_crf, y_fake_g_class_crf = crf(A_inter, y_fake_g_d, y_fake_g_class_d)
+                # fake_images, fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
+                # y_fake_g, y_fake_g_class = D(fake_images, crop_idx, fake_img_for_crf)
+
+                y_fake_g = (y_fake_g_d + y_fake_g_crf) / 2.
+                y_fake_g_class = (y_fake_g_class_d + y_fake_g_class_crf) / 2.
                 g_loss = loss_f(y_fake_g, real_labels) + \
                          args.lambda_class * F.cross_entropy(y_fake_g_class, class_label)
-                '''
 
             g_loss.backward()
             g_optimizer.step()
@@ -264,8 +258,9 @@ def main():
         for p in crf.parameters():
             p.requires_grad = True
         crf.zero_grad()
-        # print("crf")
         # generate fake images latent dim from G^A
+
+        #البته یه ایف باید اضافه کنم ک کاندیشن را درنظر بگیرد
         noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
         fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
         # if torch.isnan(A_inter).any() or torch.isinf(A_inter).any():
