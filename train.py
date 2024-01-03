@@ -82,7 +82,7 @@ def main():
     G = Generator(mode='train', latent_dim=args.latent_dim, num_class=args.num_class).cuda()
     D = Discriminator(num_class=args.num_class).cuda()
     E = Encoder().cuda()
-    crf = CRF(num_nodes=crf_num_nodes, iteration=10, num_class=2).cuda()
+    crf = CRF(num_nodes=crf_num_nodes, iteration=10, num_class=4).cuda()
 
     g_optimizer = optim.Adam(G.parameters(), lr=args.lr_g, betas=(0.0, 0.999), eps=1e-8)
     d_optimizer = optim.Adam(D.parameters(), lr=args.lr_d, betas=(0.0, 0.999), eps=1e-8)
@@ -199,11 +199,8 @@ def main():
             y_fake_pred, y_fake_class= D(fake_images, fake_images_small, crop_idx)
             '''
             fake_images = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
-            # fake_images = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
             y_fake_pred, y_fake_class = D(fake_images, crop_idx)
 
-
-        #حواسم باشه وقتی میخوام عوض بکنم این رو ببرم داخل ایف ها چون فرق داره دیگه برای هرکدوم ؟؟؟؟؟
         d_fake_loss = loss_f(y_fake_pred, fake_labels)
         d_loss = d_real_loss + d_fake_loss
         d_loss.backward()
@@ -239,8 +236,6 @@ def main():
                 fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
                 y_fake_g_d, y_fake_g_class_d = D(fake_images, crop_idx)
                 y_fake_g_crf, y_fake_g_class_crf = crf(A_inter, y_fake_g_d, y_fake_g_class_d)
-                # fake_images, fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
-                # y_fake_g, y_fake_g_class = D(fake_images, crop_idx, fake_img_for_crf)
 
                 y_fake_g = (y_fake_g_d + y_fake_g_crf) / 2.
                 y_fake_g_class = (y_fake_g_class_d + y_fake_g_class_crf) / 2.

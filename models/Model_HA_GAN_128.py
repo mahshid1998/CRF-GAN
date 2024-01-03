@@ -32,7 +32,7 @@ class Encoder(nn.Module):
 
 
 class CRF(nn.Module):
-    def __init__(self, num_nodes, iteration=10, num_class=2):
+    def __init__(self, num_nodes, iteration=10, num_class=4):
         """Initialize the CRF module
 
         Args:
@@ -87,33 +87,43 @@ class CRF(nn.Module):
             probs = torch.transpose(logits.sigmoid(), 1, 2)
             # taking expectation of pairwise_potential using current Q
             pairwise_potential_E = torch.sum(probs * pairwise_potential - (1 - probs) * pairwise_potential, dim=2, keepdim=True)
+            '''
+            if i == 0:
+                print("\n\nprobs:", probs.shape)
+                print("pairwise_potential", pairwise_potential.shape)
+                print("pairwise_potential_E", pairwise_potential_E.shape)
+                print("unary_potential", unary_potential.shape)
+            '''
             logits = unary_potential + pairwise_potential_E
 
-        logits_class = torch.tensor([[0.5,0.5], [0.5,0.5], [0.5,0.5]])
+
+        logits_class = torch.tensor([[0.5,0.5,0.5,0.5], [0.5,0.5,0.5,0.5], [0.5,0.5,0.5,0.5]]).cuda()
 
         if self.num_class > 0:
             W_class_sym = (self.W_class + torch.transpose(self.W_class, 1, 2)) / 2.
-            print(W_class_sym)
-            # print(pairwise_sim.shape)
-            # print("W class:", W_class_sym.unsqueeze(0).shape, "pairwise squeezi:", pairwise_sim.unsqueeze(1).shape)
 
+            # print("\n\n\n\nW class:", W_class_sym.unsqueeze(0).shape, "pairwise squeezi:", pairwise_sim.unsqueeze(1).shape)
             pairwise_potential_class = torch.mul(W_class_sym.unsqueeze(0), pairwise_sim.unsqueeze(1))
-            # print(pairwise_sim)
-            # print(pairwise_potential_class)
-            # ???????????????????????????????????????????????????????????????????
-            # print("pairwise class:",pairwise_potential_class.shape)
-            # exit(10)
+
+            # print("logits class before:", logits_class.shape)
             logits_class = logits_class.unsqueeze(1).expand(-1, self.num_nodes, -1)
+            # print("logits_class:", logits_class.shape)
             unary_potential_class = logits_class.clone()
             for i in range(self.iteration):
                 # current Q after normalizing the logits
-                probs_class = torch.transpose(F.softmax(logits_class, dim=1), 1, 2)
-                print("prob class: ", probs_class.shape)
+                # ???????????????????????????????????????????????????????????????????????
+                probs_class = torch.transpose(F.softmax(logits_class, dim=2), 1, 2).unsqueeze(2)
+                # print("\n\n\nprob class: ", probs_class.shape)
+                # print("pairwise_potential class:", pairwise_potential_class.shape)
+                # print("??????")
+                # print("unary_potential class: ", unary_potential_class.shape)
                 # taking expectation of pairwise_potential using current Q
+                # ??????????????????????????????????????????????????????????????????????????????????????????
                 pairwise_potential_E_class = torch.sum(probs_class * pairwise_potential_class - (1 - probs_class) *
-                                                       pairwise_potential_class, dim=2, keepdim=True)
-                logits_class = unary_potential_class + pairwise_potential_E_class
-
+                                                       pairwise_potential_class, dim=3)
+                xx = torch.transpose(pairwise_potential_E_class, 1,2)
+                # print("pairwise_potential_E",pairwise_potential_E_class.shape, "xx:", xx.shape)
+                logits_class = unary_potential_class + xx
 
         return logits.mean(dim=1)
 
