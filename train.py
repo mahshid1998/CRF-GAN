@@ -82,7 +82,7 @@ def main():
     G = Generator(mode='train', latent_dim=args.latent_dim, num_class=args.num_class).cuda()
     D = Discriminator(num_class=args.num_class).cuda()
     E = Encoder().cuda()
-    crf = CRF(num_nodes=crf_num_nodes, iteration=10, num_class=4).cuda()
+    crf = CRF(num_nodes=crf_num_nodes, iteration=10, num_class=args.num_class).cuda()
 
     g_optimizer = optim.Adam(G.parameters(), lr=args.lr_g, betas=(0.0, 0.999), eps=1e-8)
     d_optimizer = optim.Adam(D.parameters(), lr=args.lr_d, betas=(0.0, 0.999), eps=1e-8)
@@ -168,6 +168,8 @@ def main():
         real_images, class_label = gen_load.__next__()
         D.zero_grad()
 
+
+
         real_images = real_images.float().cuda()
         # randomly select a high-res sub-volume from real image
         crop_idx = np.random.randint(0, args.img_size*7/8+1)  # 256 * 7/8 + 1
@@ -181,13 +183,12 @@ def main():
             fake_images = G(noise, crop_idx=crop_idx, class_label=None)
             y_fake_pred = D(fake_images, crop_idx)
         else:  # conditional
-
             class_label_onehot = F.one_hot(class_label, num_classes=args.num_class)
             class_label = class_label.long().cuda()
             class_label_onehot = class_label_onehot.float().cuda()
 
             # y_real_pred, y_real_class = D(real_images_crop, real_images_small, crop_idx)
-            y_real_pred, y_real_class = D(real_images_crop, crop_idx, real_images)
+            y_real_pred, y_real_class = D(real_images_crop, crop_idx)
             # GAN loss + auxiliary classifier loss
             d_real_loss = loss_f(y_real_pred, real_labels) + \
                           F.cross_entropy(y_real_class, class_label)
@@ -232,7 +233,6 @@ def main():
                 y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
-
                 fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
                 y_fake_g_d, y_fake_g_class_d = D(fake_images, crop_idx)
                 y_fake_g_crf, y_fake_g_class_crf = crf(A_inter, y_fake_g_d, y_fake_g_class_d)
@@ -254,21 +254,36 @@ def main():
             p.requires_grad = True
         crf.zero_grad()
         # generate fake images latent dim from G^A
-
-        #البته یه ایف باید اضافه کنم ک کاندیشن را درنظر بگیرد
         noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
-        fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
-        # if torch.isnan(A_inter).any() or torch.isinf(A_inter).any():
-        #    print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
-        logits_fake = D(fake_images, crop_idx)
-        y_fake_crf = crf(A_inter, logits_fake)
-        crf_fake_loss = loss_f(y_fake_crf, fake_labels)
 
-        # generate real images latent dim from E^H
-        A_real_inter = E(real_images)
-        logits_real = D(real_images_crop, crop_idx)
-        y_real_crf = crf(A_real_inter, logits_real)
-        crf_real_loss = loss_f(y_real_crf, real_labels)
+        if args.num_class == 0:  # unconditional
+            fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
+            logits_fake = D(fake_images, crop_idx)
+            y_fake_crf = crf(A_inter, logits_fake)
+            crf_fake_loss = loss_f(y_fake_crf, fake_labels)
+
+            # generate real images latent dim from E^H
+            A_real_inter = E(real_images)
+            logits_real = D(real_images_crop, crop_idx)
+            y_real_crf = crf(A_real_inter, logits_real)
+            crf_real_loss = loss_f(y_real_crf, real_labels)
+
+
+
+        else: # conditional
+            fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
+            y_fake_d, y_fake_d_class = D(fake_images, crop_idx)
+            y_fake_crf, y_fake_crf_class = crf(A_inter, y_fake_d, y_fake_d_class)
+            crf_fake_loss = loss_f(y_fake_crf, fake_labels)
+
+            # generate real images latent dim from E^H
+            A_real_inter = E(real_images)
+            y_real_d, y_real_d_class = D(real_images_crop, crop_idx)
+            y_real_crf, y_real_crf_class = crf(A_real_inter, y_real_d, y_real_d_class)
+            crf_real_loss = loss_f(y_real_crf, real_labels) + \
+                          F.cross_entropy(y_real_crf_class, class_label)
+
+
 
         crf_loss = crf_real_loss + crf_fake_loss
         crf_loss.backward()

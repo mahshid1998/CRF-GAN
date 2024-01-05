@@ -32,7 +32,7 @@ class Encoder(nn.Module):
 
 
 class CRF(nn.Module):
-    def __init__(self, num_nodes, iteration=10, num_class=4):
+    def __init__(self, num_nodes, iteration=10, num_class=0):
         """Initialize the CRF module
 
         Args:
@@ -124,7 +124,10 @@ class CRF(nn.Module):
                 xx = torch.transpose(pairwise_potential_E_class, 1,2)
                 # print("pairwise_potential_E",pairwise_potential_E_class.shape, "xx:", xx.shape)
                 logits_class = unary_potential_class + xx
-
+            # print(logits.shape, logits.mean(dim=1).shape)
+            # print(logits_class.shape, logits_class.mean(dim=1).shape)
+            return logits.mean(dim=1), logits_class.mean(dim=1)
+        print("Nooooooooo")
         return logits.mean(dim=1)
 
 
