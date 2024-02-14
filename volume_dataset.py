@@ -31,9 +31,8 @@ class Volume_Dataset(Dataset):
             FILE = open("class_label.csv", "r")
             FILE.readline() # header
             for myline in FILE.readlines():
-                print(myline)
                 mylist = myline.strip("\n").split(",")
-                print(mylist)
+                print(mylist[0], int(mylist[1]))
                 self.class_label_dict[mylist[0]] = int(mylist[1])
             FILE.close()
 
