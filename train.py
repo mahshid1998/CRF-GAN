@@ -155,7 +155,7 @@ def main():
     print(d_param/10**6, g_param/10**6, e_param/10**6, crf_param/10**6, (d_param + g_param + e_param + crf_param)/10**6)
     exit(10)
     """
-    # print("I am alpha CRF-GAN version")
+    print("I am conditional version")
     for iteration in range(args.continue_iter, args.num_iter):
         ###############################################
         # Train Discriminator (D^H)
