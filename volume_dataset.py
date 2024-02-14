@@ -40,6 +40,7 @@ class Volume_Dataset(Dataset):
 
     def __getitem__(self, idx):
         img = np.load(self.data_dir+self.sid_list[idx])
-        print(self.sid_list[idx])
         class_label = self.class_label_dict.get(self.sid_list[idx], -1) # -1 if no class label
+        if class_label == -1:
+            print(self.sid_list[idx])
         return img[None,:,:,:], class_label
