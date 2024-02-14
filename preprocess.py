@@ -70,6 +70,8 @@ def batch_resize(batch_idx, img_list):
             continue
         imgname = img_list[idx].split('/')[-1]
         print(imgname)
+        print(OUTPUT_DATA_DIR+imgname)
+        print(OUTPUT_DATA_DIR+imgname.split('.')[0])
         if os.path.exists(OUTPUT_DATA_DIR+imgname.split('.')[0]+".npy"):
             # skip images that already finished pre-processing
             continue
