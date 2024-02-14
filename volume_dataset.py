@@ -31,7 +31,9 @@ class Volume_Dataset(Dataset):
             FILE = open("class_label.csv", "r")
             FILE.readline() # header
             for myline in FILE.readlines():
+                print(myline)
                 mylist = myline.strip("\n").split(",")
+                print(mylist)
                 self.class_label_dict[mylist[0]] = int(mylist[1])
             FILE.close()
 
@@ -41,6 +43,4 @@ class Volume_Dataset(Dataset):
     def __getitem__(self, idx):
         img = np.load(self.data_dir+self.sid_list[idx])
         class_label = self.class_label_dict.get(self.sid_list[idx], -1) # -1 if no class label
-        if class_label == -1:
-            print(self.sid_list[idx])
         return img[None,:,:,:], class_label
