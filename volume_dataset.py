@@ -32,7 +32,6 @@ class Volume_Dataset(Dataset):
             FILE.readline() # header
             for myline in FILE.readlines():
                 mylist = myline.strip("\n").split(",")
-                print(mylist[0], int(mylist[1]))
                 self.class_label_dict[mylist[0]] = int(mylist[1])
             FILE.close()
 
@@ -41,7 +40,9 @@ class Volume_Dataset(Dataset):
 
     def __getitem__(self, idx):
         img = np.load(self.data_dir+self.sid_list[idx])
-        print("ppp")
-        print(self.sid_list[idx])
+        #print("ppp")
+        print("mamooli :",self.sid_list[idx])
         class_label = self.class_label_dict.get(self.sid_list[idx], -1) # -1 if no class label
+        if class_label == -1:
+            print("rid: ", self.sid_list[idx])
         return img[None,:,:,:], class_label
