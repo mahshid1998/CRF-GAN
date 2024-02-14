@@ -69,6 +69,7 @@ def batch_resize(batch_idx, img_list):
         if idx % NUM_JOBS != batch_idx:
             continue
         imgname = img_list[idx].split('/')[-1]
+        print(imgname)
         if os.path.exists(OUTPUT_DATA_DIR+imgname.split('.')[0]+".npy"):
             # skip images that already finished pre-processing
             continue
