@@ -70,9 +70,10 @@ def batch_resize(batch_idx, img_list):
             continue
         imgname = img_list[idx].split('/')[-1]
         print(imgname)
-        print(OUTPUT_DATA_DIR+imgname)
-        print(OUTPUT_DATA_DIR+imgname.split('.')[0])
-        if os.path.exists(OUTPUT_DATA_DIR+imgname.split('.')[0]+".npy"):
+        # print(OUTPUT_DATA_DIR+imgname)
+        # print(OUTPUT_DATA_DIR+imgname.split('.')[0])
+        # if os.path.exists(OUTPUT_DATA_DIR+imgname.split('.')[0]+".npy"):
+        if os.path.exists(OUTPUT_DATA_DIR+imgname +".npy"):
             # skip images that already finished pre-processing
             continue
         try:
@@ -94,7 +95,7 @@ def batch_resize(batch_idx, img_list):
             print("Image resize error:", imgname)
             continue
         # preprocessed images are saved in numpy arrays
-        np.save(OUTPUT_DATA_DIR+imgname.split('.')[0]+".npy", img)
+        np.save(OUTPUT_DATA_DIR+imgname+".npy", img)
 
 
 if __name__ == '__main__':
