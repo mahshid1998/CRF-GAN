@@ -97,7 +97,7 @@ class CRF(nn.Module):
             logits = unary_potential + pairwise_potential_E
 
 
-        logits_class = torch.tensor([[0.5,0.5,0.5,0.5], [0.5,0.5,0.5,0.5], [0.5,0.5,0.5,0.5]]).cuda()
+        # logits_class = torch.tensor([[0.5,0.5,0.5,0.5], [0.5,0.5,0.5,0.5], [0.5,0.5,0.5,0.5]]).cuda()
 
         if self.num_class > 0:
             W_class_sym = (self.W_class + torch.transpose(self.W_class, 1, 2)) / 2.

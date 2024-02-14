@@ -183,6 +183,7 @@ def main():
             fake_images = G(noise, crop_idx=crop_idx, class_label=None)
             y_fake_pred = D(fake_images, crop_idx)
         else:  # conditional
+            print("conditional D")
             class_label_onehot = F.one_hot(class_label, num_classes=args.num_class)
             class_label = class_label.long().cuda()
             class_label_onehot = class_label_onehot.float().cuda()
@@ -233,6 +234,7 @@ def main():
                 y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
+                print("Conditional G")
                 fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
                 y_fake_g_d, y_fake_g_class_d = D(fake_images, crop_idx)
                 y_fake_g_crf, y_fake_g_class_crf = crf(A_inter, y_fake_g_d, y_fake_g_class_d)
@@ -271,6 +273,7 @@ def main():
 
 
         else: # conditional
+            print("Conditional CRF")
             fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
             y_fake_d, y_fake_d_class = D(fake_images, crop_idx)
             y_fake_crf, y_fake_crf_class = crf(A_inter, y_fake_d, y_fake_d_class)
@@ -350,7 +353,7 @@ def main():
                                    torch.cuda.memory_reserved() / 1024**3
             summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
         '''
-        if iteration > 10000 and (iteration+1)% 5000 == 0:
+        if iteration > 30000 and (iteration+1)% 5000 == 0:
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
             torch.save({'model':E.state_dict(), 'optimizer':e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/E_iter'+str(iteration+1)+'.pth')
