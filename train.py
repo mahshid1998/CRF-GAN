@@ -13,6 +13,7 @@ from torch.backends import cudnn
 from torch.nn import functional as F
 
 
+
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 cudnn.benchmark = True
@@ -27,7 +28,7 @@ parser.add_argument('--img-size', default=256, type=int,
                     help='size of training images (default: 256, can be 128 or 256)')
 parser.add_argument('--num-iter', default=80000, type=int,
                     help='number of iteration for training (default: 80000)')
-parser.add_argument('--log-iter', default=20, type=int,
+parser.add_argument('--log-iter', default=100, type=int,
                     help='number of iteration between logging (default: 20)')
 
 parser.add_argument('--lr-d', default=0.0004, type=float,
@@ -44,6 +45,8 @@ parser.add_argument('--lambda_class', default=0.1, type=float,
                     help='weights for the auxiliary classifier loss')
 parser.add_argument('--num_class', default=0, type=int,
                     help='number of class for auxiliary classifier (0 if unconditional)')
+parser.add_argument('--use_fake', action='store_true',
+                    help='use the synthtic images for training or not')
 
 
 def main():
@@ -53,6 +56,11 @@ def main():
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, drop_last=True,
                                                shuffle=False, num_workers=args.workers)
     gen_load = inf_train_gen(train_loader)
+
+    testset = Volume_Dataset(data_dir=args.data_dir, mode="test", fold=args.fold, num_class=args.num_class)
+    test_loader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, drop_last=False,
+                                              shuffle=False, num_workers=args.workers)
+    my_s = nn.Softmax(dim=1)
 
     from models.Model_HA_GAN_128 import Discriminator, Generator
         
@@ -106,44 +114,54 @@ def main():
         D.zero_grad()
 
         real_images = real_images.float().cuda()
-        print("real images: ", real_images.shape)
-        # randomly select a high-res sub-volume from real image
-        # crop_idx = np.random.randint(0, args.img_size*7/8+1)  # 256 * 7/8 + 1
-        # real_images_crop = real_images[:, :, crop_idx:crop_idx+args.img_size//8, :, :]
 
-        # print("conditional D")
         class_label_onehot = F.one_hot(class_label, num_classes=args.num_class)
         class_label = class_label.long().cuda()
         class_label_onehot = class_label_onehot.float().cuda()
 
-        # y_real_pred, y_real_class = D(real_images_crop, real_images_small, crop_idx)
+
         y_real_class = D(real_images)
         # GAN loss + auxiliary classifier loss
         d_real_loss = F.cross_entropy(y_real_class, class_label)
 
-        # random generation
-        noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
-        fake_images = G(noise, class_label=class_label_onehot)
-        print("fake images: ", fake_images.shape)
+        if args.use_fake:
+            # random generation
+            noise = torch.randn((args.batch_size, 1024)).cuda()
+            fake_images = G(noise, class_label=class_label_onehot)
+            print("fake images: ", fake_images.shape)
 
-        y_fake_class = D(fake_images)
-        d_fake_loss = F.cross_entropy(y_fake_class, class_label)
-
-        d_loss = (d_real_loss + d_fake_loss) / 2.
+            y_fake_class = D(fake_images)
+            d_fake_loss = F.cross_entropy(y_fake_class, class_label)
+            d_loss = (d_real_loss + d_fake_loss) / 2.
+        else:
+            d_loss = d_real_loss
         d_loss.backward()
         d_optimizer.step()
 
         # Logging
         if iteration % args.log_iter == 0:
-            summary_writer.add_scalar('D', d_loss.item(), iteration)
-            summary_writer.add_scalar('D_real', d_real_loss.item(), iteration)
-            summary_writer.add_scalar('D_fake', d_fake_loss.item(), iteration)
             print(iteration, "iter")
+            with torch.no_grad():
+                test_acc = 0
+                test_size = 0
+                for i, batch in enumerate(test_loader):
+                    pred_test = D(batch[0].float().cuda()).cpu()
+                    pred_test_normal = my_s(pred_test)
+                    test_acc += torch.sum(torch.argmax(pred_test_normal, dim=1) == batch[1].long())
+                    test_size += torch.numel(batch[1])
+                print(test_acc, test_size)
+                accuracy = test_acc / test_size
+                print("accuracy: ", accuracy)
+            summary_writer.add_scalar('test_accuracy', accuracy, iteration)
+            summary_writer.add_scalar('D_train', d_loss.item(), iteration)
+            summary_writer.add_scalar('D_real', d_real_loss.item(), iteration)
+            if args.use_fake:
+                summary_writer.add_scalar('D_fake', d_fake_loss.item(), iteration)
             print('[{}/{}]'.format(iteration, args.num_iter),
                   'D_real: {:<8.3}'.format(d_real_loss.item()),
-                  'D_fake: {:<8.3}'.format(d_fake_loss.item()), )
+                  'D_train: {:<8.3}'.format(d_loss.item()))
 
-        if iteration > 30000 and (iteration+1) % 5000 == 0:
+        if iteration > 30000 and (iteration+1) % 1000 == 0:
             torch.save({'model': D.state_dict(), 'optimizer': d_optimizer.state_dict()},
                        './checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
 
