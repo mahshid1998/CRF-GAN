@@ -141,9 +141,9 @@ class Discriminator(nn.Module):
         self.conv6 = SNConv3d(channel // 2, channel, kernel_size=(4, 4, 4), stride=(2, 2, 2),
                               padding=(1, 1, 1))  # out:[1,4,4,4]
 
-        self.conv7 = SNConv3d(channel, channel * 2 , kernel_size=(4, 4, 4))  # out:[1,4,4,4]
+        self.conv7 = SNConv3d(channel, channel , kernel_size=(4, 4, 4))  # out:[1,4,4,4]
 
-        self.fc1 = SNLinear(channel *2 , channel // 8)
+        self.fc1 = SNLinear(channel, channel // 8)
         # self.fc2 = SNLinear(channel // 8, 1)
         # if num_class > 0:
         self.fc2_class = SNLinear(channel // 8, num_class)
