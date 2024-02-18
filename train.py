@@ -161,7 +161,7 @@ def main():
                   'D_real: {:<8.3}'.format(d_real_loss.item()),
                   'D_train: {:<8.3}'.format(d_loss.item()))
 
-        if iteration > 30000 and (iteration+1) % 1000 == 0:
+        if iteration > 30000 and (iteration+1) % 5000 == 0:
             torch.save({'model': D.state_dict(), 'optimizer': d_optimizer.state_dict()},
                        './checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
 
