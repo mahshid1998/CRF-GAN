@@ -8,7 +8,7 @@ from torch import optim
 from tensorboardX import SummaryWriter
 
 from utils import trim_state_dict_name, inf_train_gen
-from volume_dataset import Volume_Dataset
+from volume_dataset_zero_five import Volume_Dataset
 from torch.backends import cudnn
 from torch.nn import functional as F
 
