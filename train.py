@@ -145,7 +145,7 @@ def main():
 
         train_acc = torch.sum(torch.argmax(my_s(y_real_class), dim=1) == class_label.long())
         accuracy_train = train_acc / args.batch_size
-        print("accuracy train: ",accuracy_train)
+        # print("accuracy train: ",accuracy_train)
         # Logging
         if iteration % args.log_iter == 0:
             print(iteration, "iter")
