@@ -64,7 +64,8 @@ def main():
 
     from models.Model_HA_GAN_128 import Discriminator, Generator
         
-    G = Generator(mode='eval', latent_dim=1024, num_class=args.num_class).cuda()
+    G = Generator(mode='eval', latent_dim=1024, num_class=6).cuda()
+    # G = Generator(mode='eval', latent_dim=1024, num_class=args.num_class).cuda()
     D = Discriminator(num_class=args.num_class).cuda()
 
     d_optimizer = optim.Adam(D.parameters(), lr=args.lr_d, betas=(0.0, 0.999), eps=1e-8)
@@ -111,6 +112,8 @@ def main():
 
         # loading image, cropping, down sampling
         real_images, class_label = gen_load.__next__()
+
+        class_label[class_label !=0] = 1
         D.zero_grad()
 
         real_images = real_images.float().cuda()
@@ -138,6 +141,11 @@ def main():
         d_loss.backward()
         d_optimizer.step()
 
+
+
+        train_acc = torch.sum(torch.argmax(my_s(y_real_class), dim=1) == class_label.long())
+        accuracy_train = train_acc / args.batch_size
+        print("accuracy train: ",accuracy_train)
         # Logging
         if iteration % args.log_iter == 0:
             print(iteration, "iter")
@@ -147,11 +155,16 @@ def main():
                 for i, batch in enumerate(test_loader):
                     pred_test = D(batch[0].float().cuda()).cpu()
                     pred_test_normal = my_s(pred_test)
-                    test_acc += torch.sum(torch.argmax(pred_test_normal, dim=1) == batch[1].long())
+                    labelll = batch[1]
+                    labelll[labelll != 0] = 1
+                    test_acc += torch.sum(torch.argmax(pred_test_normal, dim=1) == labelll.long())
                     test_size += torch.numel(batch[1])
                 print(test_acc, test_size)
                 accuracy = test_acc / test_size
                 print("accuracy: ", accuracy)
+
+
+            summary_writer.add_scalar('train_accuracy', accuracy_train.item(), iteration)
             summary_writer.add_scalar('test_accuracy', accuracy, iteration)
             summary_writer.add_scalar('D_train', d_loss.item(), iteration)
             summary_writer.add_scalar('D_real', d_real_loss.item(), iteration)
