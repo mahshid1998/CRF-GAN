@@ -160,8 +160,8 @@ def main():
                     pred_final = torch.argmax(pred_test_normal, dim=1)
                     test_acc += torch.sum( pred_final == labelll.long())
                     test_size += torch.numel(batch[1])
-                    print(torch.bincount(pred_final))
-                print(test_acc, test_size)
+                    print("prediction labels: ",torch.bincount(pred_final))
+                # print(test_acc, test_size)
                 accuracy = test_acc / test_size
                 print("accuracy: ", accuracy)
 
