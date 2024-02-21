@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import os
 import json
@@ -11,7 +12,7 @@ from utils import trim_state_dict_name, inf_train_gen
 from volume_dataset_zero_five import Volume_Dataset
 from torch.backends import cudnn
 from torch.nn import functional as F
-
+from sklearn.metrics import precision_score, recall_score, f1_score
 
 
 torch.manual_seed(0)
@@ -150,24 +151,32 @@ def main():
         if iteration % args.log_iter == 0:
             print(iteration, "iter")
             with torch.no_grad():
-                test_acc = 0
-                test_size = 0
+                # test_acc = 0
+                # test_size = 0
+                true_label = np.array([])
+                pred_label = np.array([])
                 for i, batch in enumerate(test_loader):
-                    pred_test = D(batch[0].float().cuda()).cpu()
+                    pred_test = D(batch[0].float().cuda()).cpu().detach().numpy()
                     pred_test_normal = my_s(pred_test)
-                    labelll = batch[1]
+                    labelll = batch[1].cpu().detach().numpy()
                     labelll[labelll != 0] = 1
-                    pred_final = torch.argmax(pred_test_normal, dim=1)
-                    test_acc += torch.sum( pred_final == labelll.long())
-                    test_size += torch.numel(batch[1])
-                    print("prediction labels: ",torch.bincount(pred_final))
-                # print(test_acc, test_size)
-                accuracy = test_acc / test_size
-                print("accuracy: ", accuracy)
+                    pred_final = np.argmax(pred_test_normal, dim=1)
 
+                    true_label = np.concatenate([true_label, labelll])
+                    pred_label = np.concatenate([pred_label, pred_final])
+
+                    # test_acc += torch.sum(pred_final == labelll.long())
+                    # test_size += torch.numel(batch[1])
+                print("prediction labels: ", np.bincount(pred_final))
+                # print(test_acc, test_size)
+                # accuracy = test_acc / test_size
+                print("precision: ", precision_score(true_label, pred_label))
+                print("recall: ", recall_score(true_label, pred_label))
 
             summary_writer.add_scalar('train_accuracy', accuracy_train.item(), iteration)
-            summary_writer.add_scalar('test_accuracy', accuracy, iteration)
+            summary_writer.add_scalar('test_precision', precision_score(true_label, pred_label), iteration)
+            summary_writer.add_scalar('test_recall', recall_score(true_label, pred_label), iteration)
+            summary_writer.add_scalar('test_f1', f1_score(true_label, pred_label), iteration)
             summary_writer.add_scalar('D_train', d_loss.item(), iteration)
             summary_writer.add_scalar('D_real', d_real_loss.item(), iteration)
             if args.use_fake:
