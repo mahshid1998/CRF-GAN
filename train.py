@@ -159,11 +159,12 @@ def main():
                     pred_test = D(batch[0].float().cuda())
                     pred_test_normal = my_s(pred_test).cpu().detach()
                     pred_final = torch.argmax(pred_test_normal, dim=1).numpy()
-
+                    print("pred final: ", pred_final)
                     labelll = batch[1].cpu().detach().numpy()
                     labelll[labelll != 0] = 1
+                    print("labelll:", labelll)
 
-                    true_label = np.concatenate([true_label, labelll.long()])
+                    true_label = np.concatenate([true_label, labelll])
                     pred_label = np.concatenate([pred_label, pred_final])
 
                     # test_acc += torch.sum(pred_final == labelll.long())
