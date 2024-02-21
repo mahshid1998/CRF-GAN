@@ -157,10 +157,11 @@ def main():
                 pred_label = np.array([])
                 for i, batch in enumerate(test_loader):
                     pred_test = D(batch[0].float().cuda())
-                    pred_test_normal = my_s(pred_test).cpu().detach().numpy()
+                    pred_test_normal = my_s(pred_test).cpu().detach()
+                    pred_final = torch.argmax(pred_test_normal, dim=1).numpy()
+
                     labelll = batch[1].cpu().detach().numpy()
                     labelll[labelll != 0] = 1
-                    pred_final = np.argmax(pred_test_normal, dim=1)
 
                     true_label = np.concatenate([true_label, labelll])
                     pred_label = np.concatenate([pred_label, pred_final])
