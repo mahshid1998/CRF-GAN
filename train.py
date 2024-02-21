@@ -167,8 +167,8 @@ def main():
 
                     # test_acc += torch.sum(pred_final == labelll.long())
                     # test_size += torch.numel(batch[1])
-                print("prediction labels: ", np.unique(pred_label, return_counts=True))
-                print("true labels:", np.unique(true_label, return_counts=True))
+                # print("prediction labels: ", np.unique(pred_label, return_counts=True))
+                # print("true labels:", np.unique(true_label, return_counts=True))
                 # print(test_acc, test_size)
                 # accuracy = test_acc / test_size
                 print("precision: ", precision_score(true_label, pred_label))
