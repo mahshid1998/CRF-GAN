@@ -156,8 +156,8 @@ def main():
                 true_label = np.array([])
                 pred_label = np.array([])
                 for i, batch in enumerate(test_loader):
-                    pred_test = D(batch[0].float().cuda()).cpu().detach().numpy()
-                    pred_test_normal = my_s(pred_test)
+                    pred_test = D(batch[0].float().cuda())
+                    pred_test_normal = my_s(pred_test).cpu().detach().numpy()
                     labelll = batch[1].cpu().detach().numpy()
                     labelll[labelll != 0] = 1
                     pred_final = np.argmax(pred_test_normal, dim=1)
