@@ -163,7 +163,7 @@ def main():
                     labelll = batch[1].cpu().detach().numpy()
                     labelll[labelll != 0] = 1
 
-                    true_label = np.concatenate([true_label, labelll])
+                    true_label = np.concatenate([true_label, labelll.long()])
                     pred_label = np.concatenate([pred_label, pred_final])
 
                     # test_acc += torch.sum(pred_final == labelll.long())
