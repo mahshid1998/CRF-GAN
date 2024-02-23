@@ -183,7 +183,7 @@ def main():
                 # test_size = 0
                 true_label = np.array([])
                 pred_label = np.array([])
-                pred_label_without_soft = np.array([])
+                loss_valid = 0
                 for i, batch in enumerate(valid_loader):
                     pred_valid = D(batch[0].float().cuda())
                     pred_valid_normal = my_s(pred_valid).cpu().detach()
@@ -192,10 +192,8 @@ def main():
                     labelll[labelll != 0] = 1
                     true_label = np.concatenate([true_label, labelll])
                     pred_label = np.concatenate([pred_label, pred_final])
-                    pred_label_without_soft = np.concatenate([pred_label_without_soft, pred_valid.cpu().detach()])
+                    loss_valid += F.cross_entropy(torch.from_numpy(pred_valid.cpu().detach()), torch.from_numpy(labelll))
 
-
-                loss_valid = F.cross_entropy(torch.from_numpy(pred_label_without_soft),torch.from_numpy(true_label))
                 print("precision: ", precision_score(true_label, pred_label))
                 print("recall: ", recall_score(true_label, pred_label))
             if early_s.check_stop(precision_score(true_label, pred_label)):
