@@ -192,7 +192,7 @@ def main():
                     labelll[labelll != 0] = 1
                     true_label = np.concatenate([true_label, labelll])
                     pred_label = np.concatenate([pred_label, pred_final])
-                    loss_valid += F.cross_entropy(torch.from_numpy(pred_valid.cpu().detach()), torch.from_numpy(labelll))
+                    loss_valid += F.cross_entropy(pred_valid.cpu().detach(), torch.from_numpy(labelll))
 
                 print("precision: ", precision_score(true_label, pred_label))
                 print("recall: ", recall_score(true_label, pred_label))
