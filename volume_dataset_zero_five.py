@@ -28,13 +28,17 @@ class Volume_Dataset(Dataset):
         self.sid_list.sort()
         self.sid_list = np.asarray(self.sid_list)
 
-        kf = KFold(n_splits=10, shuffle=True, random_state=0)
-        train_index, valid_index = list(kf.split(self.sid_list))[fold]
+        kf = KFold(n_splits=5, shuffle=True, random_state=0)
+        train_index, valid_test = list(kf.split(self.sid_list))[fold]
+        kf2 = KFold(n_splits=2, shuffle=True, random_state=0)
+        test_index, valid_index = list(kf2.split(self.sid_list[valid_test]))[fold]
         print("Fold:", fold)
-        if mode=="train":
+        if mode == "train":
             self.sid_list = self.sid_list[train_index]
+        elif mode == "test":
+            self.sid_list = self.sid_list[valid_test][test_index]
         else:
-            self.sid_list = self.sid_list[valid_index]
+            self.sid_list = self.sid_list[valid_test][valid_index]
         print("Dataset size:", len(self))
 
 

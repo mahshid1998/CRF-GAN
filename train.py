@@ -14,7 +14,6 @@ from torch.backends import cudnn
 from torch.nn import functional as F
 from sklearn.metrics import precision_score, recall_score, f1_score
 
-
 torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 cudnn.benchmark = True
@@ -49,6 +48,27 @@ parser.add_argument('--num_class', default=0, type=int,
 parser.add_argument('--use_fake', action='store_true',
                     help='use the synthtic images for training or not')
 
+parser.add_argument('--patience', default=3, type=int,
+                    help='patience for early stopping')
+
+
+class EarlyStopping:
+    def __init__(self, patience=3):
+        self.patience = patience
+        self.initial_patience = patience
+        self.best_metric = 0
+    def check_stop(self, metric):
+        if metric > self.best_metric:
+            self.best_metric = metric
+            self.patience = self.initial_patience
+        else:
+            self.patience -= 1
+        if self.patience == 0:
+            print("Early stop")
+            return True
+        else:
+            return False
+
 
 def main():
     # Configuration
@@ -61,6 +81,12 @@ def main():
     testset = Volume_Dataset(data_dir=args.data_dir, mode="test", fold=args.fold, num_class=args.num_class)
     test_loader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, drop_last=False,
                                               shuffle=False, num_workers=args.workers)
+
+    validset = Volume_Dataset(data_dir=args.data_dir, mode="valid", fold=args.fold, num_class=args.num_class)
+    valid_loader = torch.utils.data.DataLoader(validset, batch_size=args.batch_size, drop_last=False,
+                                              shuffle=False, num_workers=args.workers)
+
+    early_s = EarlyStopping(args.patience)
     my_s = nn.Softmax(dim=1)
 
     from models.Model_HA_GAN_128 import Discriminator, Generator
@@ -142,11 +168,13 @@ def main():
         d_loss.backward()
         d_optimizer.step()
 
-
-
         train_acc = torch.sum(torch.argmax(my_s(y_real_class), dim=1) == class_label.long())
         accuracy_train = train_acc / args.batch_size
-        # print("accuracy train: ",accuracy_train)
+
+        ###############################################
+        # validation
+        ###############################################
+
         # Logging
         if iteration % args.log_iter == 0:
             print(iteration, "iter")
@@ -155,25 +183,22 @@ def main():
                 # test_size = 0
                 true_label = np.array([])
                 pred_label = np.array([])
-                for i, batch in enumerate(test_loader):
-                    pred_test = D(batch[0].float().cuda())
-                    pred_test_normal = my_s(pred_test).cpu().detach()
-                    pred_final = torch.argmax(pred_test_normal, dim=1).numpy()
+                for i, batch in enumerate(valid_loader):
+                    pred_valid = D(batch[0].float().cuda())
+                    pred_valid_normal = my_s(pred_valid).cpu().detach()
+                    pred_final = torch.argmax(pred_valid_normal, dim=1).numpy()
                     labelll = batch[1].cpu().detach().numpy()
                     labelll[labelll != 0] = 1
-
                     true_label = np.concatenate([true_label, labelll])
                     pred_label = np.concatenate([pred_label, pred_final])
 
-                    # test_acc += torch.sum(pred_final == labelll.long())
-                    # test_size += torch.numel(batch[1])
-                # print("prediction labels: ", np.unique(pred_label, return_counts=True))
-                # print("true labels:", np.unique(true_label, return_counts=True))
-                # print(test_acc, test_size)
-                # accuracy = test_acc / test_size
+
+                loss_valid = F.cross_entropy(torch.from_numpy(pred_label),torch.from_numpy(true_label))
                 print("precision: ", precision_score(true_label, pred_label))
                 print("recall: ", recall_score(true_label, pred_label))
-
+            if early_s.check_stop(precision_score(true_label, pred_label)):
+                break
+            summary_writer.add_scalar('loss_valid', loss_valid.item(), iteration)
             summary_writer.add_scalar('train_accuracy', accuracy_train.item(), iteration)
             summary_writer.add_scalar('test_precision', precision_score(true_label, pred_label), iteration)
             summary_writer.add_scalar('test_recall', recall_score(true_label, pred_label), iteration)
@@ -190,6 +215,26 @@ def main():
             torch.save({'model': D.state_dict(), 'optimizer': d_optimizer.state_dict()},
                        './checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
         '''
+
+
+    with torch.no_grad():
+        true_label = np.array([])
+        pred_label = np.array([])
+        for i, batch in enumerate(test_loader):
+            pred_test = D(batch[0].float().cuda())
+            pred_test_normal = my_s(pred_test).cpu().detach()
+            pred_final_test = torch.argmax(pred_test_normal, dim=1).numpy()
+            labelll = batch[1].cpu().detach().numpy()
+            labelll[labelll != 0] = 1
+            true_label = np.concatenate([true_label, labelll])
+            pred_label = np.concatenate([pred_label, pred_final_test])
+
+        print("precision test: ", precision_score(true_label, pred_label))
+        print("recall test: ", recall_score(true_label, pred_label))
+
+    summary_writer.add_scalar('precision test', precision_score(true_label, pred_label),1)
+    summary_writer.add_scalar('recall test', recall_score(true_label, pred_label), 1)
+
 
 if __name__ == '__main__':
     main()
