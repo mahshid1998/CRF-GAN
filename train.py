@@ -196,7 +196,7 @@ def main():
 
                 print("precision: ", precision_score(true_label, pred_label))
                 print("recall: ", recall_score(true_label, pred_label))
-            if early_s.check_stop(precision_score(true_label, pred_label)):
+            if early_s.check_stop(precision_score(true_label, pred_label)) and iteration > 20000:
                 break
             summary_writer.add_scalar('loss_valid', loss_valid.item(), iteration)
             summary_writer.add_scalar('train_accuracy', accuracy_train.item(), iteration)
