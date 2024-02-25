@@ -11,7 +11,7 @@ import nibabel as nib
 from nilearn import plotting
 
 from utils import trim_state_dict_name, inf_train_gen
-from volume_dataset import Volume_Dataset
+from volume_dataset_zero_five import Volume_Dataset
 from torch.backends import cudnn
 import matplotlib.pyplot as plt
 from torch.nn import functional as F
@@ -166,6 +166,7 @@ def main():
             p.requires_grad = False
         # loading image, cropping, down sampling
         real_images, class_label = gen_load.__next__()
+        class_label[class_label !=0] = 1
         D.zero_grad()
 
 
