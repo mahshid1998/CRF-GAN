@@ -200,9 +200,9 @@ def main():
                 break
             summary_writer.add_scalar('loss_valid', loss_valid.item(), iteration)
             summary_writer.add_scalar('train_accuracy', accuracy_train.item(), iteration)
-            summary_writer.add_scalar('test_precision', precision_score(true_label, pred_label), iteration)
-            summary_writer.add_scalar('test_recall', recall_score(true_label, pred_label), iteration)
-            summary_writer.add_scalar('test_f1', f1_score(true_label, pred_label), iteration)
+            summary_writer.add_scalar('val_precision', precision_score(true_label, pred_label), iteration)
+            summary_writer.add_scalar('val_recall', recall_score(true_label, pred_label), iteration)
+            summary_writer.add_scalar('val_f1', f1_score(true_label, pred_label), iteration)
             summary_writer.add_scalar('D_train', d_loss.item(), iteration)
             summary_writer.add_scalar('D_real', d_real_loss.item(), iteration)
             if args.use_fake:
@@ -232,8 +232,8 @@ def main():
         print("precision test: ", precision_score(true_label, pred_label))
         print("recall test: ", recall_score(true_label, pred_label))
 
-    summary_writer.add_scalar('precision test', precision_score(true_label, pred_label),1)
-    summary_writer.add_scalar('recall test', recall_score(true_label, pred_label), 1)
+    summary_writer.add_scalar('precision test', precision_score(true_label, pred_label))
+    summary_writer.add_scalar('recall test', recall_score(true_label, pred_label))
 
 
 if __name__ == '__main__':
