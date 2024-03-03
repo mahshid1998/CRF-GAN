@@ -91,7 +91,7 @@ def main():
 
     from models.Model_HA_GAN_128 import Discriminator, Generator
         
-    G = Generator(mode='eval', latent_dim=1024, num_class=6).cuda()
+    G = Generator(mode='eval', latent_dim=1024, num_class=args.num_class).cuda()
     # G = Generator(mode='eval', latent_dim=1024, num_class=args.num_class).cuda()
     D = Discriminator(num_class=args.num_class).cuda()
 
