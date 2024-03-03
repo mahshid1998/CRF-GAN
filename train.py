@@ -158,7 +158,7 @@ def main():
             # random generation
             noise = torch.randn((args.batch_size, 1024)).cuda()
             fake_images = G(noise, class_label=class_label_onehot)
-            print("fake images: ", fake_images.shape)
+            # print("fake images: ", fake_images.shape)
 
             y_fake_class = D(fake_images)
             d_fake_loss = F.cross_entropy(y_fake_class, class_label)
