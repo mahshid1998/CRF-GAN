@@ -28,7 +28,7 @@ parser.add_argument('--img-size', default=256, type=int,
                     help='size of training images (default: 256, can be 128 or 256)')
 parser.add_argument('--num-iter', default=80000, type=int,
                     help='number of iteration for training (default: 80000)')
-parser.add_argument('--log-iter', default=100, type=int,
+parser.add_argument('--log-iter', default=45, type=int,
                     help='number of iteration between logging (default: 20)')
 
 parser.add_argument('--lr-d', default=0.0004, type=float,
@@ -196,7 +196,7 @@ def main():
 
                 print("precision: ", precision_score(true_label, pred_label))
                 print("recall: ", recall_score(true_label, pred_label))
-            if early_s.check_stop(precision_score(true_label, pred_label)) and iteration > 20000:
+            if early_s.check_stop(precision_score(true_label, pred_label)):
                 break
             summary_writer.add_scalar('loss_valid', loss_valid.item(), iteration)
             summary_writer.add_scalar('train_accuracy', accuracy_train.item(), iteration)
