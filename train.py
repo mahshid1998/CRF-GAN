@@ -58,7 +58,7 @@ class EarlyStopping:
         self.initial_patience = patience
         self.best_metric = 0
     def check_stop(self, metric):
-        if metric > self.best_metric:
+        if metric >= self.best_metric:
             self.best_metric = metric
             self.patience = self.initial_patience
         else:
