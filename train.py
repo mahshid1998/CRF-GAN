@@ -157,13 +157,14 @@ def main():
     g_param = sum(p.numel() for p in G.parameters())
     e_param = sum(p.numel() for p in E.parameters())
     crf_param = sum(p.numel() for p in crf.parameters())
-    print(d_param/10**6, g_param/10**6, e_param/10**6, crf_param/10**6, (d_param + g_param + e_param + crf_param)/10**6)
+    print("all in million_ D: ",d_param/10**6, "G",g_param/10**6, "E", e_param/10**6, "CRF",crf_param/10**6, "all:",(d_param + g_param + e_param + crf_param)/10**6)
+    print("I am alpha CRF-GAN version")
     exit(10)
     """
-    print("I am alpha CRF-GAN version")
     for iteration in range(args.continue_iter, args.num_iter):
         # print("iteration :", iteration)
-
+        memory_usage = torch.cuda.max_memory_allocated() / 1024 ** 3  # convert bytes to GB
+        print(f"mem usage crf-gan:{memory_usage}")
         ###############################################
         # Train Discriminator (D^H)
         ###############################################
