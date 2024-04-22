@@ -161,10 +161,9 @@ def main():
     print("I am alpha CRF-GAN version")
     exit(10)
     """
+    torch.cuda.reset_peak_memory_stats()
     for iteration in range(args.continue_iter, args.num_iter):
         # print("iteration :", iteration)
-        memory_usage = torch.cuda.max_memory_allocated() / 1024 ** 3  # convert bytes to GB
-        print(f"mem usage crf-gan:{memory_usage}")
         ###############################################
         # Train Discriminator (D^H)
         ###############################################
@@ -334,6 +333,10 @@ def main():
             plotting.plot_img(featmask,title="FAKE",cut_coords=(args.img_size//2,args.img_size//2,args.img_size//16),figure=fig,draw_cross=False,cmap="gray")
             summary_writer.add_figure('Fake', fig, iteration, close=True)
 
+
+
+            memory_usage = torch.cuda.max_memory_allocated() / 1024 ** 3  # convert bytes to GB
+            print(f"mem usage crf-gan:{memory_usage}")
 
 # ###################################################### my code to capture# with torch.autograd.profiler.profile(use_cuda=True) as prof:
             '''
