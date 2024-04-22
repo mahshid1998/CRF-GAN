@@ -12,11 +12,11 @@ import multiprocessing as mp
 # 8 cores are used for multi-thread processing
 NUM_JOBS = 1
 #  resized output size, can be 128 or 256
-IMG_SIZE = 128
+IMG_SIZE = 256
 # INPUT_DATA_DIR = "/home/mahshid/Desktop/Projects/HAGAN/HA-GAN/Data/GSP_part1_140630/"
 # OUTPUT_DATA_DIR = '/home/mahshid/Desktop/Projects/HAGAN/HA-GAN/Data/processed/'
 INPUT_DATA_DIR = "/mnt/data/mashid/lidc/raw"
-OUTPUT_DATA_DIR = "/mnt/data/mashid/lidc/processed/"
+OUTPUT_DATA_DIR = "/mnt/data/mashid/lidc/processed256/"
 # the intensity range is clipped with the two thresholds, this default is used for our CT images, please adapt to your own dataset
 LOW_THRESHOLD = -1024
 HIGH_THRESHOLD = 600
@@ -65,6 +65,7 @@ def main():
 
 
 def batch_resize(batch_idx, img_list):
+    counter = 0
     for idx in range(len(img_list)):
         if idx % NUM_JOBS != batch_idx:
             continue
@@ -96,6 +97,9 @@ def batch_resize(batch_idx, img_list):
             continue
         # preprocessed images are saved in numpy arrays
         np.save(OUTPUT_DATA_DIR+imgname+".npy", img)
+        counter += 1
+        if counter >= 30:
+            break
 
 
 if __name__ == '__main__':
