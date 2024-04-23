@@ -14,8 +14,6 @@ from torch.backends import cudnn
 from torch.nn import functional as F
 from sklearn.metrics import precision_score, recall_score, f1_score
 
-torch.manual_seed(0)
-torch.cuda.manual_seed_all(0)
 cudnn.benchmark = True
 
 parser = argparse.ArgumentParser(description='PyTorch Classifier Training')
@@ -52,6 +50,8 @@ parser.add_argument('--patience', default=3, type=int,
                     help='patience for early stopping')
 
 
+parser.add_argument('--seed', default=10, type=int)
+
 class EarlyStopping:
     def __init__(self, patience=3):
         self.patience = patience
@@ -73,6 +73,9 @@ class EarlyStopping:
 def main():
     # Configuration
     args = parser.parse_args()
+
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
     trainset = Volume_Dataset(data_dir=args.data_dir, fold=args.fold, num_class=args.num_class)
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, drop_last=True,
                                                shuffle=False, num_workers=args.workers)
