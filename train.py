@@ -164,6 +164,10 @@ def main():
     torch.cuda.reset_peak_memory_stats()
     for iteration in range(args.continue_iter, args.num_iter):
         # print("iteration :", iteration)
+        print(iteration)
+        memory_usage = torch.cuda.max_memory_allocated() / 1024 ** 2  # convert bytes to MB
+        print(f"MAX mem usage hagan:{memory_usage}")
+        print(torch.cuda.memory_summary())
         ###############################################
         # Train Discriminator (D^H)
         ###############################################
@@ -335,8 +339,7 @@ def main():
 
 
 
-            memory_usage = torch.cuda.max_memory_allocated() / 1024 ** 3  # convert bytes to GB
-            print(f"mem usage crf-gan:{memory_usage}")
+
 
 # ###################################################### my code to capture# with torch.autograd.profiler.profile(use_cuda=True) as prof:
             '''
