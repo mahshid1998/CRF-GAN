@@ -92,7 +92,7 @@ def main():
     early_s = EarlyStopping(args.patience)
     my_s = nn.Softmax(dim=1)
 
-    from models.Model_HA_GAN_128 import Discriminator, Generator
+    from modelhagan.Model_HA_GAN_128 import Discriminator, Generator
         
     G = Generator(mode='eval', latent_dim=1024, num_class=args.num_class).cuda()
     # G = Generator(mode='eval', latent_dim=1024, num_class=args.num_class).cuda()
