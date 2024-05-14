@@ -96,10 +96,10 @@ def main():
     my_s = nn.Softmax(dim=1)
 
     if args.use_hagan:
-        from modelhagan.Model_HA_GAN_128 import Discriminator, Generator
+        from modelhagan.Model_HA_GAN_128 import Generator
     else:
-        from models.Model_HA_GAN_128 import Discriminator, Generator
-
+        from models.Model_HA_GAN_128 import Generator
+    from models.Model_HA_GAN_128 import Discriminator
 
     G = Generator(mode='eval', latent_dim=1024, num_class=args.num_class).cuda()
     # G = Generator(mode='eval', latent_dim=1024, num_class=args.num_class).cuda()
