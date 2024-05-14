@@ -361,7 +361,7 @@ def main():
 
     end_time = time.time()
     elapsed_time = end_time - start_time
-    iterations_per_second = args.num - iter / elapsed_time
+    iterations_per_second = args.num_iter / elapsed_time
     print("CRF-GAN: Iterations per second:", iterations_per_second, "total time: ", elapsed_time)
 
 if __name__ == '__main__':
