@@ -162,12 +162,13 @@ def main():
     exit(10)
     """
     torch.cuda.reset_peak_memory_stats()
+    start_time = time.time()
     for iteration in range(args.continue_iter, args.num_iter):
         # print("iteration :", iteration)
-        print(iteration)
-        memory_usage = torch.cuda.max_memory_allocated() / 1024 ** 2  # convert bytes to MB
-        print(f"MAX mem usage hagan:{memory_usage}")
-        print(torch.cuda.memory_summary())
+        #print(iteration)
+        #memory_usage = torch.cuda.max_memory_allocated() / 1024 ** 2  # convert bytes to MB
+        #print(f"MAX mem usage hagan:{memory_usage}")
+        #print(torch.cuda.memory_summary())
         ###############################################
         # Train Discriminator (D^H)
         ###############################################
@@ -305,6 +306,7 @@ def main():
         e_loss.backward()
         e_optimizer.step()
         # Logging
+        '''
         if iteration % args.log_iter == 0:
             summary_writer.add_scalar('D', d_loss.item(), iteration)
             summary_writer.add_scalar('D_real', d_real_loss.item(), iteration)
@@ -340,9 +342,7 @@ def main():
 
 
 
-
 # ###################################################### my code to capture# with torch.autograd.profiler.profile(use_cuda=True) as prof:
-            '''
             # todo
             # Get the current memory usage
             if torch.cuda.is_available():
@@ -351,13 +351,17 @@ def main():
                 memory_usage = torch.cuda.memory_allocated() / 1024**3 + \
                                    torch.cuda.memory_reserved() / 1024**3
             summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
-        '''
         if iteration > 10000 and (iteration+1)% 5000 == 0:
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
             torch.save({'model':E.state_dict(), 'optimizer':e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/E_iter'+str(iteration+1)+'.pth')
             torch.save({'model':crf.state_dict(), 'optimizer':crf_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/crf_iter'+str(iteration+1)+'.pth')
+        '''
 
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    iterations_per_second = args.num - iter / elapsed_time
+    print("CRF-GAN: Iterations per second:", iterations_per_second, "total time: ", elapsed_time)
 
 if __name__ == '__main__':
     main()
