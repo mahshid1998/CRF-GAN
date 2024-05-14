@@ -49,6 +49,9 @@ parser.add_argument('--use_fake', action='store_true',
 parser.add_argument('--patience', default=3, type=int,
                     help='patience for early stopping')
 
+parser.add_argument('--use_hagan', action='store_true',
+                    help='use hagan for generator')
+
 
 parser.add_argument('--seed', default=10, type=int)
 
@@ -92,8 +95,12 @@ def main():
     early_s = EarlyStopping(args.patience)
     my_s = nn.Softmax(dim=1)
 
-    from modelhagan.Model_HA_GAN_128 import Discriminator, Generator
-        
+    if args.use_hagan:
+        from modelhagan.Model_HA_GAN_128 import Discriminator, Generator
+    else:
+        from models.Model_HA_GAN_128 import Discriminator, Generator
+
+
     G = Generator(mode='eval', latent_dim=1024, num_class=args.num_class).cuda()
     # G = Generator(mode='eval', latent_dim=1024, num_class=args.num_class).cuda()
     D = Discriminator(num_class=args.num_class).cuda()
