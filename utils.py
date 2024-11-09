@@ -6,14 +6,7 @@ from skimage.transform import resize
 
 import torch
 
-'''
-def post_process_brain(x_pred):
-    x_pred = resize(x_pred, (256-90,256-40,256-40), mode='constant', cval=0.)
-    x_canvas = np.zeros((256,256,256))
-    x_canvas[50:-40,20:-20,20:-20] = x_pred
-    x_canvas = np.flip(x_canvas,0)
-    return x_canvas
-'''
+
 def _itensity_normalize(volume):       
     pixels = volume[volume > 0]
     mean = pixels.mean()

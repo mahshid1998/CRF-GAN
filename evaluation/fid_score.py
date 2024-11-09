@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import os
 import time
 from argparse import ArgumentParser
@@ -13,7 +11,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from volume_dataset import Volume_Dataset
-from models.Model_HA_GAN_256 import Generator, Encoder
+from models.CRF_GAN_256 import Generator, Encoder
 from resnet3D import resnet50
 
 torch.manual_seed(0)
@@ -179,7 +177,6 @@ def get_feature_extractor():
     model = resnet50(shortcut_type='B')
     model.conv_seg = nn.Sequential(nn.AdaptiveAvgPool3d((1, 1, 1)), Flatten())# (N, 512)
     # ckpt from https://drive.google.com/file/d/1399AsrYpQDi1vq6ciKRQkfknLsQQyigM/view?usp=sharing
-    # todo
     ckpt = torch.load("resnet_50.pth")
     ckpt = trim_state_dict_name(ckpt["state_dict"])
     model.load_state_dict(ckpt) # No conv_seg module in ckpt
@@ -199,7 +196,6 @@ def calculate_fid_real(args):
                                               shuffle=False, num_workers=args.num_workers)
     act = get_activations_from_dataloader(model, data_loader, args)
 
-    # todo
     #np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/resnet50_256GSP_ACT.npy", act)
     np.save(args.path_save + "/resnet50_256GSP_ACT.npy", act)
     print("saved act")
@@ -207,7 +203,6 @@ def calculate_fid_real(args):
     m, s = post_process(act)
 
     print("saving m , s")
-    # todo
     # np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/m_real_resnet50_256GSP"+str(args.fold)+".npy", m)
     # np.save("/home/mahshid/Desktop/Git-myProject/evaluation/results/fid/s_real_resnet50_256GSP"+str(args.fold)+".npy", s)
     np.save(args.path_save + "/m_real.npy", m)
@@ -222,9 +217,6 @@ def calculate_mmd_fake(args):
 def calculate_fid_fake(args):
     act = generate_samples(args)
     m2, s2 = post_process(act)
-    # todo
-    # m1 = np.load("home/mahshid/Desktop/Git-myProject/evaluation/results/fid/m_real_"+args.real_suffix+str(args.fold)+".npy")
-    # s1 = np.load("home/mahshid/Desktop/Git-myProject/evaluation/results/fid/s_real_"+args.real_suffix+str(args.fold)+".npy")
     m1 = np.load(args.path_save + "/m_real.npy")
     s1 = np.load(args.path_save + "/s_real.npy")
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)

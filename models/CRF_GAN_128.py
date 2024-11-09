@@ -30,7 +30,9 @@ class Encoder(nn.Module):
         h = self.relu(self.bn3(h))
         return h
 
-
+    """
+    I used CRF implementation from https://github.com/baidu-research/NCRF 
+    """
 class CRF(nn.Module):
     def __init__(self, num_nodes, iteration=10):
         """Initialize the CRF module
@@ -114,7 +116,6 @@ class Discriminator(nn.Module):
         self.channel = channel
         self.num_class = num_class
 
-        # D^H
         self.conv2 = SNConv3d(1, channel // 16, kernel_size=4, stride=2, padding=1)  # out:[8,64,64,64]
         self.conv3 = SNConv3d(channel // 16, channel // 8, kernel_size=4, stride=2, padding=1)  # out:[4,32,32,32]
         self.conv4 = SNConv3d(channel // 8, channel // 4, kernel_size=(2, 4, 4), stride=(2, 2, 2),
@@ -155,7 +156,6 @@ class Generator(nn.Module):
         self.relu = nn.ReLU()
         self.num_class = num_class
 
-        # G^A and G^H
         self.fc1 = nn.Linear(latent_dim + num_class, 4 * 4 * 4 * _c * 16)
 
         self.tp_conv1 = nn.Conv3d(_c * 16, _c * 16, kernel_size=3, stride=1, padding=1, bias=True)
@@ -206,7 +206,6 @@ class Generator(nn.Module):
             h_latent = self.relu(self.bn5(h))  # (32, 32, 32), channel:128
 
             if self.mode == "train":
-                # h_small = self.sub_G(h_latent)
                 h = h_latent[:, :, crop_idx // 4:crop_idx // 4 + 4, :, :]  # Crop sub-volume, out: (4, 32, 32)
             else:
                 h = h_latent

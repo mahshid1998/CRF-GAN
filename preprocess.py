@@ -13,8 +13,11 @@ import multiprocessing as mp
 NUM_JOBS = 2
 #  resized output size, can be 128 or 256
 IMG_SIZE = 256
-INPUT_DATA_DIR = "/home/mahshid/Desktop/GSP_outputs/data_GSP/extractedData/GSP_part10_140630/"
-OUTPUT_DATA_DIR = '/home/mahshid/Desktop/GSP_outputs/data_GSP/processed-10-256/'
+"""
+need to be set
+"""
+INPUT_DATA_DIR = ""
+OUTPUT_DATA_DIR = ''
 # the intensity range is clipped with the two thresholds, this default is used for our CT images, please adapt to your own dataset
 LOW_THRESHOLD = -1024
 HIGH_THRESHOLD = 600

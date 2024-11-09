@@ -1,7 +1,7 @@
-#!/usr/bin/env python
-# train HA-GAN
-# Hierarchical Amortized GAN for 3D High Resolution Medical Image Synthesis
-# https://ieeexplore.ieee.org/abstract/document/9770375
+"""
+initial code was taken from Hierarchical Amortized GAN for 3D High Resolution Medical Image Synthesis
+"""
+
 import numpy as np
 import torch
 import os
@@ -14,7 +14,7 @@ from torch import optim
 from tensorboardX import SummaryWriter
 import nibabel as nib
 from nilearn import plotting
-
+import torch.nn.functional as F
 from utils import trim_state_dict_name, inf_train_gen
 from volume_dataset import Volume_Dataset
 from torch.backends import cudnn
@@ -74,13 +74,13 @@ def main():
     gen_load = inf_train_gen(train_loader)
     
     if args.img_size == 256:
-        from models.Model_HA_GAN_256 import Discriminator, Generator, Encoder, CRF
+        from models.CRF_GAN_256 import Discriminator, Generator, Encoder, CRF
         crf_num_nodes = 64
     elif args.img_size == 128:
-        from models.Model_HA_GAN_128 import Discriminator, Generator, Encoder, CRF
+        from models.CRF_GAN_128 import Discriminator, Generator, Encoder, CRF
         crf_num_nodes = 32
     elif args.img_size == 64:
-        from models.Model_HA_GAN_64 import Discriminator, Generator, Encoder, CRF
+        from models.CRF_GAN_64 import Discriminator, Generator, Encoder, CRF
         crf_num_nodes = 16
     else:
         raise NotImplmentedError
@@ -153,25 +153,11 @@ def main():
     for p in crf.parameters():
         p.requires_grad = False
 
-    """
-    d_param = sum(p.numel() for p in D.parameters())
-    g_param = sum(p.numel() for p in G.parameters())
-    e_param = sum(p.numel() for p in E.parameters())
-    crf_param = sum(p.numel() for p in crf.parameters())
-    print("all in million_ D: ",d_param/10**6, "G",g_param/10**6, "E", e_param/10**6, "CRF",crf_param/10**6, "all:",(d_param + g_param + e_param + crf_param)/10**6)
-    print("I am alpha CRF-GAN version")
-    exit(10)
-    """
     torch.cuda.reset_peak_memory_stats()
     start_time = time.time()
     for iteration in range(args.continue_iter, args.num_iter):
-        # print("iteration :", iteration)
-        #print(iteration)
-        #memory_usage = torch.cuda.max_memory_allocated() / 1024 ** 2  # convert bytes to MB
-        #print(f"MAX mem usage hagan:{memory_usage}")
-        #print(torch.cuda.memory_summary())
         ###############################################
-        # Train Discriminator (D^H)
+        # Train Discriminator
         ###############################################
         for p in D.parameters():  
             p.requires_grad = True
@@ -194,7 +180,6 @@ def main():
             fake_images = G(noise, crop_idx=crop_idx, class_label=None)
             y_fake_pred = D(fake_images, crop_idx)
         else:  # conditional
-            """
             class_label_onehot = F.one_hot(class_label, num_classes=args.num_class)
             class_label = class_label.long().cuda()
             class_label_onehot = class_label_onehot.float().cuda()
@@ -214,41 +199,36 @@ def main():
             fake_img_for_crf = G(noise, crop_idx=crop_idx, class_label=class_label_onehot, crf_need=True)
             fake_images = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
             y_fake_pred, y_fake_class = D(fake_images, crop_idx, fake_img_for_crf)
-            """
+
         d_fake_loss = loss_f(y_fake_pred, fake_labels)
         d_loss = d_real_loss + d_fake_loss
         d_loss.backward()
         d_optimizer.step()
 
         ###############################################
-        # Train Generator (G^A, G^H and G^L(Not any more:)))
+        # Train Generator
         ###############################################
         for p in D.parameters():
             p.requires_grad = False
         for p in G.parameters():
             p.requires_grad = True
         for iters in range(args.g_iter):
-            # print("G")
             G.zero_grad()
             noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
             if args.num_class == 0:  # unconditional
                 fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
                 fake_detection_d = D(fake_images, crop_idx)
                 fake_detection_crf = crf(A_inter, fake_detection_d)
-                # print(fake_detection_crf)
 
-
-                # fixme this is the alpha-CRF
+                # this is the alpha-CRF-GAN.
                 # Calculate the weight for CRF func
                 weight_crf = max(0.5 - (0.5 / 60000) * iteration, 0)
                 # Calculate the combined feedback signal with the weighted contribution
                 y_fake_g = (fake_detection_crf * weight_crf) + ((1-weight_crf) * fake_detection_d)
 
-
                 # y_fake_g = (fake_detection_crf + fake_detection_d)/2.
                 g_loss = loss_f(y_fake_g, real_labels)
             else:  # conditional
-                '''
                 fake_images, fake_images_small = G(noise, crop_idx=crop_idx, class_label=class_label_onehot)
                 y_fake_g, y_fake_g_class = D(fake_images, fake_images_small, crop_idx)
                 
@@ -257,7 +237,6 @@ def main():
 
                 g_loss = loss_f(y_fake_g, real_labels) + \
                          args.lambda_class * F.cross_entropy(y_fake_g_class, class_label)
-                '''
 
             g_loss.backward()
             g_optimizer.step()
@@ -270,12 +249,9 @@ def main():
         for p in crf.parameters():
             p.requires_grad = True
         crf.zero_grad()
-        # print("crf")
         # generate fake images latent dim from G^A
         noise = torch.randn((args.batch_size, args.latent_dim)).cuda()
         fake_images, A_inter = G(noise, crop_idx=crop_idx, class_label=None, crf_need=True)
-        # if torch.isnan(A_inter).any() or torch.isinf(A_inter).any():
-        #    print(iteration, crop_idx, torch.isnan(fake_images).any().item(), torch.isinf(fake_images).any().item())
         logits_fake = D(fake_images, crop_idx)
         y_fake_crf = crf(A_inter, logits_fake)
         crf_fake_loss = loss_f(y_fake_crf, fake_labels)
@@ -291,7 +267,7 @@ def main():
         crf_optimizer.step()
 
         ###############################################
-        # Train Encoder (E^H)
+        # Train Encoder
         ###############################################
         for p in E.parameters():
             p.requires_grad = True
@@ -307,7 +283,6 @@ def main():
         e_loss.backward()
         e_optimizer.step()
         # Logging
-        '''
         if iteration % args.log_iter == 0:
             summary_writer.add_scalar('D', d_loss.item(), iteration)
             summary_writer.add_scalar('D_real', d_real_loss.item(), iteration)
@@ -341,23 +316,11 @@ def main():
             summary_writer.add_figure('Fake', fig, iteration, close=True)
 
 
-
-
-# ###################################################### my code to capture# with torch.autograd.profiler.profile(use_cuda=True) as prof:
-            # todo
-            # Get the current memory usage
-            if torch.cuda.is_available():
-                memory_usage = torch.cuda.max_memory_allocated() / 1024**3  # convert bytes to GB
-            else:
-                memory_usage = torch.cuda.memory_allocated() / 1024**3 + \
-                                   torch.cuda.memory_reserved() / 1024**3
-            summary_writer.add_scalar("memory_usage", memory_usage, global_step=iteration)
         if iteration > 10000 and (iteration+1)% 5000 == 0:
             torch.save({'model':G.state_dict(), 'optimizer':g_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/G_iter'+str(iteration+1)+'.pth')
             torch.save({'model':D.state_dict(), 'optimizer':d_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/D_iter'+str(iteration+1)+'.pth')
             torch.save({'model':E.state_dict(), 'optimizer':e_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/E_iter'+str(iteration+1)+'.pth')
             torch.save({'model':crf.state_dict(), 'optimizer':crf_optimizer.state_dict()},'./checkpoint/'+args.exp_name+'/crf_iter'+str(iteration+1)+'.pth')
-        '''
 
     end_time = time.time()
     elapsed_time = end_time - start_time
